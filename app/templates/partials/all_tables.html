@@ -1,6 +1,18 @@
 {% for family in family_order %}
   {% set items = grouped.get(family, []) %}
   {% if items %}
+  {% set kb_values = [] %}
+  {% set build_values = [] %}
+  {% set eol_dates = [] %}
+  {% for item in items %}
+    {% if item.latest and item.latest.kb_number %}{% set _ = kb_values.append(1) %}{% endif %}
+    {% if item.latest and item.latest.build %}{% set _ = build_values.append(1) %}{% endif %}
+    {% if item.product.support_end_date or item.product.support_ended %}{% set _ = eol_dates.append(1) %}{% endif %}
+  {% endfor %}
+  {% set show_kb = kb_values|length > 0 %}
+  {% set show_build = build_values|length > 0 %}
+  {% set show_eol = eol_dates|length > 0 %}
+  {% set colcount = 4 + (1 if show_kb else 0) + (1 if show_build else 0) + (1 if show_eol else 0) %}
   <section class="family-section" data-family="{{ family }}">
     <h2>{{ t('family.' ~ family) }}</h2>
     <div class="table-wrap">
@@ -8,10 +20,11 @@
       <thead>
         <tr>
           <th>{{ t('table.version') }}</th>
-          <th>{{ t('table.latest_kb') }}</th>
-          <th>{{ t('table.build') }}</th>
+          {% if show_kb %}<th>{{ t('table.latest_kb') }}</th>{% endif %}
+          {% if show_build %}<th>{{ t('table.build') }}</th>{% endif %}
           <th>{{ t('table.type') }}</th>
           <th>{{ t('table.date') }}</th>
+          {% if show_eol %}<th>{{ t('table.eol') }}</th>{% endif %}
           <th></th>
         </tr>
       </thead>
@@ -20,20 +33,36 @@
         {% set product = item.product %}
         {% set latest = item.latest %}
         {% set history_id = "hist-" ~ (product.key|replace(".", "-")) %}
+        {% set eol = product.support_end_date %}
+        {% set eol_state = eol_status(eol) %}
         <tr class="product-row" data-key="{{ product.key }}" data-name="{{ product.display_name }}" data-search="{{ (product.display_name ~ ' ' ~ (latest.kb_number or ''))|lower }}">
           <td>{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.ltsc') }}</span>{% endif %}</td>
+          {% if show_kb %}
           <td>
             {% if latest and latest.kb_number %}
               <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.kb_number }}</a>
             {% else %}–{% endif %}
           </td>
+          {% endif %}
+          {% if show_build %}
           <td>{{ latest.build if latest and latest.build else "–" }}</td>
+          {% endif %}
           <td>
             {% if latest and latest.update_type %}
               <span class="badge badge-{{ latest.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (latest.update_type|lower|replace(' ', '-'))) }}</span>
             {% endif %}
           </td>
           <td>{{ format_date(latest.release_date) if latest else "–" }}</td>
+          {% if show_eol %}
+          <td>
+            {% if eol %}
+              <span class="eol-value eol-{{ eol_state }}"
+                    {% if eol_state == "ended" %}title="{{ t('eol.ended') }}"{% elif eol_state == "soon" %}title="{{ t('eol.ending_soon') }}"{% endif %}>{{ format_date(eol) }}</span>
+            {% elif product.support_ended %}
+              <span class="eol-value eol-ended" title="{{ t('eol.ended') }}">{{ t('eol.ended_label') }}</span>
+            {% else %}–{% endif %}
+          </td>
+          {% endif %}
           <td>
             <button type="button" class="history-btn" aria-expanded="false"
                     hx-get="/product/{{ product.key }}/history" hx-trigger="click once"
@@ -46,7 +75,7 @@
           </td>
         </tr>
         <tr class="history-row" hidden>
-          <td colspan="6">
+          <td colspan="{{ colcount }}">
             <div class="history-body" id="{{ history_id }}"><p class="muted">…</p></div>
           </td>
         </tr>

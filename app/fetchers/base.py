@@ -15,6 +15,16 @@ class ProductInfo:
     family: str
     is_ltsc: bool = False
     source_url: str | None = None
+    # Last date this version receives any updates ("end of life"). Left None
+    # when a source doesn't track it (e.g. .NET Framework has no equivalent
+    # page) or the source only says "already ended" without a concrete date
+    # (in that case support_ended is set instead — see below).
+    support_end_date: dt.date | None = None
+    # True when the source says support has already ended but doesn't repeat
+    # an exact date (Microsoft's "End of updates" wording). Distinguishes
+    # "known to be over, exact date just not machine-readable here" from
+    # "we simply have no data for this product" (both look like None above).
+    support_ended: bool = False
 
 
 @dataclasses.dataclass(slots=True)

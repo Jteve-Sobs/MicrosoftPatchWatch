@@ -5,6 +5,15 @@ date, build and KB article. That makes them a better primary source than the
 MSRC security API, which only covers *security* updates and doesn't include
 build numbers.
 
+The same pages also carry a "current versions by servicing option" summary
+section further up, with end-of-life data: an "End of updates" column pair for
+mainstream (SAC) versions, and an "Extended support end date" column for
+LTSC/LTSB and Server versions. We parse that section too and attach the
+resulting date to each matching product as `support_end_date` — this is the
+same page we're already fetching, so it's free (no extra request, no separate
+lifecycle-API dependency). .NET Framework has no equivalent page, so it simply
+never gets a support_end_date; that's expected, not a bug.
+
 The scraper does not hardcode a version list (22H2, 24H2, 25H2, LTSC 2021, ...)
 — it discovers whatever version headings + history tables Microsoft currently
 publishes on the page. That means new versions (e.g. a future 26H1) show up
@@ -57,6 +66,8 @@ VERSION_OLD_RE = re.compile(r"\bVersion\s+(\d{3,4})\b", re.IGNORECASE)  # 1809, 
 LTSC_YEAR_RE = re.compile(r"\bLTSC\s+(\d{4})\b", re.IGNORECASE)
 LTSB_YEAR_RE = re.compile(r"\b(\d{4})\s+LTSB\b", re.IGNORECASE)
 SERVER_YEAR_RE = re.compile(r"\bServer\s+(\d{4})\b", re.IGNORECASE)
+PAREN_CODE_RE = re.compile(r"\((\d{3,4})\)")  # "2019 (1809)" -> 1809
+ISO_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%B %d, %Y")
 
 
@@ -68,12 +79,20 @@ def _slugify(text: str) -> str:
 
 def _parse_date(text: str) -> dt.date | None:
     text = text.strip()
+    # Cells sometimes carry trailing notes, e.g. "2032-01-13 (IoT Enterprise
+    # only)" — pull the ISO date out rather than requiring an exact match.
+    m = ISO_DATE_RE.search(text)
+    if m:
+        try:
+            return dt.date.fromisoformat(m.group(1))
+        except ValueError:
+            pass
     for fmt in DATE_FORMATS:
         try:
             return dt.datetime.strptime(text, fmt).date()
         except ValueError:
             continue
-    return None
+    return None  # e.g. "End of updates" — already ended, no date given
 
 
 def _classify_update_type(raw: str) -> str:
@@ -120,6 +139,28 @@ def _version_label(heading: str, os_label: str) -> tuple[str, bool]:
     return cleaned or heading, is_ltsc
 
 
+def _extract_version_code(text: str) -> str:
+    """Normalizes a version cell/heading to a short matching code, e.g.
+    'Version 22H2 (OS build 19045)' -> '22H2', '2019 (1809)' -> '1809',
+    'Windows Server 2019 (version 1809)' -> '2019', '24H2 1' (footnote) -> '24H2'.
+    Used to line up rows between the summary table (end-of-life dates) and the
+    release-history table (KB/build) for the same version, even though
+    Microsoft formats the version differently in each."""
+    m = VERSION_H_RE.search(text)
+    if m:
+        return m.group(1)
+    m = SERVER_YEAR_RE.search(text)
+    if m:
+        return m.group(1)
+    m = PAREN_CODE_RE.search(text)
+    if m:
+        return m.group(1)
+    m = re.search(r"\b(\d{3,4})\b", text)
+    if m:
+        return m.group(1)
+    return text.strip()
+
+
 def _display_name(os_label: str, family: str, version_label: str) -> str:
     if re.match(r"LTSC|LTSB", version_label, re.IGNORECASE):
         return f"{os_label} Enterprise {version_label}"
@@ -150,48 +191,57 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
 
         content = soup.find(attrs={"role": "main"}) or soup.find(id="main") or soup
 
-        # The page has several h2 sections (servicing-option summary, release
-        # history, hotpatch calendar, ...). We only want "release/update
-        # history": it's the one with a table per version, each carrying
-        # build + KB + date. The current version's table sits directly under
-        # a <strong>Version X</strong> marker; older versions are collapsed
-        # into <details><summary>Version X</summary><table>...</table></details>.
-        # Both patterns were confirmed by inspecting the live page structure.
-        section_heading = None
-        for h2 in content.find_all("h2"):
-            if re.search(r"release history|update history", h2.get_text(strip=True), re.IGNORECASE):
-                section_heading = h2
-                break
-
-        if section_heading is None:
-            result.errors.append(
-                f"windows-release-health: no 'release history' section found on {page['url']} "
-                "(page layout may have changed)"
-            )
-            return
-
-        found_tables = 0
+        # Different h2 sections on the page nest their content at different
+        # DOM depths (the "current versions" summary lives in its own
+        # sub-tree, "release history" is a flat run of siblings) — sibling
+        # walking only works for the latter. find_all() sidesteps that
+        # entirely: it returns every match in document order regardless of
+        # nesting, so a single pass with a small "which section am I in"
+        # state machine handles both reliably.
+        #
+        # In "history": <strong>Version X</strong> or <details><summary>
+        # Version X</summary> mark a version, immediately followed by its
+        # table. In "summary": each table has its own "Version" column
+        # (one row per version) plus the end-of-life columns we want.
+        section: str | None = None
         pending_label: str | None = None
-        node = section_heading.find_next_sibling()
+        # code -> (end_date, ended). end_date is set when the source gives an
+        # actual date; ended=True with end_date=None means the source says
+        # support already ended (literally "End of updates") but without
+        # repeating the exact date on this page.
+        eol_by_code: dict[str, tuple[dt.date | None, bool]] = {}
+        found_tables = 0
 
-        while node is not None and node.name != "h2":
-            if node.name == "strong":
-                text = node.get_text(" ", strip=True)
+        for el in content.find_all(["h2", "h4", "strong", "summary", "table"]):
+            if el.name == "h2":
+                text = el.get_text(strip=True).lower()
+                if "current versions" in text or "major versions" in text:
+                    section = "summary"
+                elif "release history" in text or "update history" in text:
+                    section = "history"
+                else:
+                    section = None
+                pending_label = None
+                continue
+
+            if section is None or el.name == "h4":
+                continue
+
+            if el.name in ("strong", "summary"):
+                text = el.get_text(" ", strip=True)
                 if text:
                     pending_label = text
-            elif node.name == "table":
-                if self._is_history_table(node):
-                    found_tables += 1
-                    self._parse_history_table(node, pending_label or page["os_label"], page, result)
-                pending_label = None
-            elif node.name == "details":
-                summary = node.find("summary")
-                label = summary.get_text(" ", strip=True) if summary else node.get_text(" ", strip=True)[:80]
-                table = node.find("table")
-                if table is not None and self._is_history_table(table):
-                    found_tables += 1
-                    self._parse_history_table(table, label, page, result)
-            node = node.find_next_sibling()
+                continue
+
+            if el.name != "table":
+                continue
+
+            if section == "summary":
+                self._parse_summary_table(el, eol_by_code)
+            elif section == "history" and self._is_history_table(el):
+                found_tables += 1
+                self._parse_history_table(el, pending_label or page["os_label"], page, result, eol_by_code)
+            pending_label = None
 
         if found_tables == 0:
             result.errors.append(
@@ -205,7 +255,58 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
         headers = " | ".join(c.get_text(" ", strip=True).lower() for c in header_cells)
         return "kb article" in headers and "build" in headers
 
-    def _parse_history_table(self, table: Tag, heading: str, page: dict, result: FetchResult) -> None:
+    @staticmethod
+    def _parse_summary_table(table: Tag, into: dict[str, tuple[dt.date | None, bool]]) -> None:
+        headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+        col_index = {name: i for i, name in enumerate(headers)}
+
+        idx_version = col_index.get("version")
+        if idx_version is None:
+            idx_version = col_index.get("windows server version")
+        if idx_version is None:
+            return
+
+        # LTSC/LTSB and Server tables have a definitive "Extended support end
+        # date" (true end of security updates). SAC/GA tables instead have two
+        # "End of updates: <editions>" columns; we take the later of the two,
+        # i.e. the last date *any* edition still gets updates.
+        idx_extended = col_index.get("extended support end date")
+        sac_cols = [i for name, i in col_index.items() if name.startswith("end of updates")]
+        date_cols = [idx_extended] if idx_extended is not None else sac_cols
+
+        body = table.find("tbody")
+        rows = body.find_all("tr") if body else table.find_all("tr")[1:]
+
+        for row in rows:
+            cells = row.find_all(["td", "th"])
+            if idx_version >= len(cells):
+                continue
+            code = _extract_version_code(cells[idx_version].get_text(" ", strip=True))
+            if not code:
+                continue
+
+            raw_texts = [cells[i].get_text(" ", strip=True) for i in date_cols if i < len(cells)]
+            parsed_dates = [d for text in raw_texts for d in [_parse_date(text)] if d is not None]
+
+            if parsed_dates:
+                # A later table for the same code (e.g. the LTSC table, which
+                # is parsed after the plain SAC table) intentionally wins —
+                # it's the more specific/correct answer for that edition.
+                into[code] = (max(parsed_dates), False)
+            elif any(raw_texts):
+                # No column parsed as a date, but the cell isn't empty either
+                # — that's Microsoft's "End of updates" wording: support has
+                # already ended, the page just doesn't repeat the exact date.
+                into[code] = (None, True)
+
+    def _parse_history_table(
+        self,
+        table: Tag,
+        heading: str,
+        page: dict,
+        result: FetchResult,
+        eol_by_code: dict[str, tuple[dt.date | None, bool]],
+    ) -> None:
         header_cells = [c.get_text(" ", strip=True).lower() for c in table.find_all("th")]
         col_index = {name: i for i, name in enumerate(header_cells)}
 
@@ -237,6 +338,7 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
                     is_ltsc = True
                     break
 
+        end_date, ended = eol_by_code.get(_extract_version_code(heading), (None, False))
         result.products.append(
             ProductInfo(
                 key=product_key,
@@ -244,6 +346,8 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
                 family=page["family"],
                 is_ltsc=is_ltsc,
                 source_url=page["url"],
+                support_end_date=end_date,
+                support_ended=ended,
             )
         )
 

@@ -249,6 +249,11 @@ a:hover { text-decoration: underline; }
 }
 .hide-btn:hover { color: var(--sev-security); border-color: var(--sev-security); }
 
+.eol-value { font-variant-numeric: tabular-nums; }
+.eol-value.eol-ended { color: var(--sev-security); font-weight: 600; }
+.eol-value.eol-soon { color: var(--sev-oob); font-weight: 600; }
+.eol-value.eol-ok { color: var(--text); }
+
 /* The history row sits directly under its product row and spans the full
    table width (colspan), so the expanded content is unambiguously "attached"
    to the row above it instead of being squeezed into one narrow cell. */

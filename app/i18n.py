@@ -37,8 +37,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "table.build": "Build",
         "table.type": "Type",
         "table.date": "Date",
+        "table.eol": "End of life",
         "table.history": "History",
         "table.hide": "Hide product",
+        "eol.ended": "Support ended",
+        "eol.ended_label": "Ended",
+        "eol.ending_soon": "Support ends soon",
         "history.date": "Date",
         "history.kb": "KB",
         "history.build": "Build",
@@ -82,8 +86,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "table.build": "Build",
         "table.type": "Typ",
         "table.date": "Datum",
+        "table.eol": "Support-Ende",
         "table.history": "Verlauf",
         "table.hide": "Produkt ausblenden",
+        "eol.ended": "Support beendet",
+        "eol.ended_label": "Beendet",
+        "eol.ending_soon": "Support endet bald",
         "history.date": "Datum",
         "history.kb": "KB",
         "history.build": "Build",
@@ -128,6 +136,19 @@ def format_datetime(locale: str, value: dt.datetime | None) -> str:
         return "–"
     pattern = DATE_FORMATS.get(locale, DATE_FORMATS[DEFAULT_LOCALE]) + " %H:%M"
     return value.strftime(pattern)
+
+
+def eol_status(value: dt.date | None, *, today: dt.date | None = None) -> str | None:
+    """Classifies a support_end_date for UI coloring: "ended" (already past),
+    "soon" (within ~90 days) or "ok" (further out). None if unknown."""
+    if value is None:
+        return None
+    today = today or dt.date.today()
+    if value < today:
+        return "ended"
+    if (value - today).days <= 90:
+        return "soon"
+    return "ok"
 
 
 def resolve_locale(request: Request) -> str:

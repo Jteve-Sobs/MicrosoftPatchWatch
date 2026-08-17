@@ -29,6 +29,9 @@ class Product(Base):
     is_ltsc: Mapped[bool] = mapped_column(Boolean, default=False)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     support_end_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    # True when support is known to have ended but the source didn't give an
+    # exact date (see fetchers.base.ProductInfo.support_ended).
+    support_ended: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

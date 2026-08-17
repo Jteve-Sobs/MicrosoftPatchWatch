@@ -8,7 +8,15 @@ from markupsafe import Markup
 from sqlalchemy import func, select
 
 from app.database import async_session_factory
-from app.i18n import SUPPORTED_LOCALES, DEFAULT_LOCALE, format_date, format_datetime, resolve_locale, translate
+from app.i18n import (
+    SUPPORTED_LOCALES,
+    DEFAULT_LOCALE,
+    eol_status,
+    format_date,
+    format_datetime,
+    resolve_locale,
+    translate,
+)
 from app.models import FetchRun, Patch, Product
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
 
@@ -28,6 +36,7 @@ def _i18n_context(locale: str) -> dict:
         "t": partial(translate, locale),
         "format_date": partial(format_date, locale),
         "format_datetime": partial(format_datetime, locale),
+        "eol_status": eol_status,
     }
 
 

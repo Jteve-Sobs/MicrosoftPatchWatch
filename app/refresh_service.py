@@ -17,7 +17,7 @@ import asyncio
 import datetime as dt
 import logging
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -109,24 +109,27 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
 
 
 async def _upsert_product(session: AsyncSession, info: ProductInfo) -> None:
-    stmt = (
-        pg_insert(Product)
-        .values(
-            key=info.key,
-            display_name=info.display_name,
-            family=info.family,
-            is_ltsc=info.is_ltsc,
-            source_url=info.source_url,
-        )
-        .on_conflict_do_update(
-            index_elements=[Product.key],
-            set_={
-                "display_name": info.display_name,
-                "family": info.family,
-                "is_ltsc": info.is_ltsc,
-                "source_url": info.source_url,
-            },
-        )
+    stmt = pg_insert(Product).values(
+        key=info.key,
+        display_name=info.display_name,
+        family=info.family,
+        is_ltsc=info.is_ltsc,
+        source_url=info.source_url,
+        support_end_date=info.support_end_date,
+        support_ended=info.support_ended,
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[Product.key],
+        set_={
+            "display_name": stmt.excluded.display_name,
+            "family": stmt.excluded.family,
+            "is_ltsc": stmt.excluded.is_ltsc,
+            "source_url": stmt.excluded.source_url,
+            # Keep the previous date if this run didn't find one (e.g. a
+            # transient parse miss), rather than clobbering it with NULL.
+            "support_end_date": func.coalesce(stmt.excluded.support_end_date, Product.support_end_date),
+            "support_ended": stmt.excluded.support_ended,
+        },
     )
     await session.execute(stmt)
 

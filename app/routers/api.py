@@ -18,6 +18,8 @@ async def list_products():
                 "family": p.family,
                 "is_ltsc": p.is_ltsc,
                 "source_url": p.source_url,
+                "support_end_date": p.support_end_date.isoformat() if p.support_end_date else None,
+                "support_ended": p.support_ended,
             }
             for p in products
         ]
