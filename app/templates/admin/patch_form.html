@@ -44,6 +44,11 @@
     {{ t('admin.field.kb_url') }}
     <input type="url" name="kb_url" value="{{ patch.kb_url if patch else '' }}" placeholder="https://support.microsoft.com/help/...">
   </label>
+  <label class="admin-checkbox-label">
+    <input type="checkbox" name="manually_edited" value="1" {% if not patch or patch.manually_edited %}checked{% endif %}>
+    {{ t('admin.manually_edited_label') }}
+  </label>
+  <p class="muted">{{ t('admin.manually_edited_hint') }}</p>
   <div class="toolbar">
     <button class="btn" type="submit">{{ t('admin.save') }}</button>
     <a class="btn btn-secondary" href="/admin/products/{{ product.key }}">{{ t('admin.cancel') }}</a>

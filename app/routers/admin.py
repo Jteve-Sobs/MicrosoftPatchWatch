@@ -183,6 +183,7 @@ async def admin_create_patch(
     update_type: str = Form(""),
     severity: str = Form(""),
     kb_url: str = Form(""),
+    manually_edited: str | None = Form(None),
 ):
     async with async_session_factory() as session:
         product = await _get_product_or_404(session, product_key)
@@ -211,7 +212,11 @@ async def admin_create_patch(
             severity=severity.strip() or None,
             kb_url=kb_url.strip() or None,
             source="manual",
-            manually_edited=True,
+            # Checkbox unchecked -> field absent from the form -> None here.
+            # Left true by default so a fresh manual entry isn't immediately
+            # eligible for the scraper to silently touch, but the admin can
+            # untick it (now or later, via edit) to re-enable sync.
+            manually_edited=manually_edited is not None,
         )
         session.add(patch)
         await session.commit()
@@ -252,6 +257,7 @@ async def admin_update_patch(
     update_type: str = Form(""),
     severity: str = Form(""),
     kb_url: str = Form(""),
+    manually_edited: str | None = Form(None),
 ):
     async with async_session_factory() as session:
         patch = await _get_patch_or_404(session, patch_id)
@@ -273,7 +279,10 @@ async def admin_update_patch(
         patch.release_date = parsed_date
         patch.severity = severity.strip() or None
         patch.kb_url = kb_url.strip() or None
-        patch.manually_edited = True
+        # Unticking this in the edit form is the whole point of the
+        # checkbox: it lets the next scraper refresh freely touch the row
+        # again instead of being permanently protected.
+        patch.manually_edited = manually_edited is not None
         await session.commit()
         product_key = product.key
 

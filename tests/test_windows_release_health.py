@@ -7,7 +7,7 @@ import datetime as dt
 
 from bs4 import BeautifulSoup
 
-from app.fetchers.windows_release_health import PAGES, WindowsReleaseHealthFetcher
+from app.fetchers.windows_release_health import PAGES, WindowsReleaseHealthFetcher, _classify_update_type
 from tests.conftest import load_fixture
 
 # Reuse the real page configs but point them at fixtures — the parsing code
@@ -163,3 +163,26 @@ async def test_preview_and_out_of_band_update_types_from_client_history(mock_fet
     assert by_kb["KB5101684"].update_type == "Preview"  # "2026-07 D"
     assert by_kb["KB5121767"].update_type == "Out-of-Band"  # "2026-07 OOB"
     assert by_kb["KB5121003"].update_type == "Security"  # "2026-08 B"
+
+
+# --- _classify_update_type: real-world shorthand values ---------------------
+# Regression tests for a bug found live: unrecognized shorthand (older
+# history uses more letters than just B/C/D) fell through to `raw or
+# "Update"`, which — since raw is never empty here — returned the raw
+# shorthand ("2016-08 E") as the update_type. That value then failed every
+# `t('badge.' ~ ...)` i18n lookup and rendered as the literal missing key
+# ("badge.2016-08-e") instead of a label.
+
+
+def test_classify_recognizes_letters_past_d():
+    # Real value seen on a live Windows 10 1607 row (KB3176938, Aug 2016).
+    assert _classify_update_type("2016-08 E") == "Preview"
+
+
+def test_classify_unrecognized_shorthand_falls_back_to_a_clean_label():
+    # "A" is real too (seen on new-version GA-release months, e.g. "2016-08 A"
+    # for the 1607 Anniversary Update launch) — not a regular B/C/D/E-style
+    # monthly-cadence letter, so it can't be classified as Security/Preview,
+    # but it must never come back out as the raw, unlabeled shorthand either.
+    assert _classify_update_type("2016-08 A") == "Update"
+    assert _classify_update_type("") == "Update"

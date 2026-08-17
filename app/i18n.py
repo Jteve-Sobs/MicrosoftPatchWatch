@@ -98,6 +98,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.field.severity": "Severity",
         "admin.field.kb_url": "KB link",
         "admin.field.date_hint": "YYYY-MM-DD, leave empty if unknown",
+        "admin.manually_edited_label": "Protect from automatic sync",
+        "admin.manually_edited_hint": (
+            "While checked, the next scraper refresh won't overwrite this entry's "
+            "title/severity. Uncheck to let it sync normally again."
+        ),
     },
     "de": {
         "app.title": "WindowsPatchWatch",
@@ -177,6 +182,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.field.severity": "Schweregrad",
         "admin.field.kb_url": "KB-Link",
         "admin.field.date_hint": "JJJJ-MM-TT, leer lassen wenn unbekannt",
+        "admin.manually_edited_label": "Vor automatischer Synchronisierung schützen",
+        "admin.manually_edited_hint": (
+            "Solange aktiv, überschreibt der nächste Scraper-Refresh Titel/Schweregrad "
+            "dieses Eintrags nicht. Häkchen entfernen, damit er wieder normal "
+            "synchronisiert wird."
+        ),
     },
 }
 

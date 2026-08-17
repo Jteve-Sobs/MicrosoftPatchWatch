@@ -124,12 +124,20 @@ def _classify_update_type(raw: str) -> str:
     if "PREVIEW" in upper:
         return "Preview"
     # Microsoft's convention: the mid-month ("B") release is the security
-    # release; later-week releases ("C"/"D") are non-security previews.
+    # release; later-week releases ("C", "D", and occasionally further
+    # letters — "E" shows up in older history — for extra out-of-cycle
+    # releases that month) are non-security previews.
     if re.search(r"\bB\b", upper):
         return "Security"
-    if re.search(r"\b[CD]\b", upper):
+    if re.search(r"\b[C-Z]\b", upper):
         return "Preview"
-    return raw or "Update"
+    # Anything else — e.g. "A" (seen on a new version's initial GA-release
+    # month, not a regular monthly-cadence letter) or a blank cell — falls
+    # back to a plain, honest label. Must NOT be `raw` here: that used to
+    # echo the unrecognized shorthand straight through (e.g. "2016-08 E"
+    # ending up as the literal update_type), which then failed every
+    # `t('badge.' ~ ...)` lookup and rendered as the raw i18n key.
+    return "Update"
 
 
 def _version_label(heading: str, os_label: str) -> tuple[str, bool]:
