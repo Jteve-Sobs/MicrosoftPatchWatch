@@ -1,22 +1,40 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+import json
+from functools import partial
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from sqlalchemy import func, select
 
 from app.database import async_session_factory
+from app.i18n import SUPPORTED_LOCALES, DEFAULT_LOCALE, format_date, format_datetime, resolve_locale, translate
 from app.models import FetchRun, Patch, Product
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+# Vanilla Jinja2 has no tojson filter (unlike Flask). Must return Markup, not
+# a plain str — otherwise the environment's autoescaping HTML-entity-encodes
+# the quotes (&#34;), which is invalid inside a <script> block.
+templates.env.filters["tojson"] = lambda value: Markup(json.dumps(value))
 
-FAMILY_LABELS = {
-    "windows_client": "Windows (Client)",
-    "windows_server": "Windows Server",
-    "dotnet_framework": ".NET Framework",
-    "dotnet": ".NET",
-}
 FAMILY_ORDER = ["windows_client", "windows_server", "dotnet_framework", "dotnet"]
+
+
+def _i18n_context(locale: str) -> dict:
+    return {
+        "locale": locale,
+        "t": partial(translate, locale),
+        "format_date": partial(format_date, locale),
+        "format_datetime": partial(format_datetime, locale),
+    }
+
+
+def _safe_next(path: str | None) -> str:
+    if not path or not path.startswith("/") or path.startswith("//") or "://" in path:
+        return "/"
+    return path
 
 
 async def _load_dashboard_data():
@@ -59,30 +77,41 @@ async def _load_dashboard_data():
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, locale: str = Depends(resolve_locale)):
     grouped, last_run = await _load_dashboard_data()
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "grouped": grouped,
-            "family_labels": FAMILY_LABELS,
             "family_order": FAMILY_ORDER,
             "last_run": last_run,
             "refresh_running": is_refresh_running(),
+            **_i18n_context(locale),
         },
     )
 
 
+@router.get("/lang/{code}")
+async def set_language(code: str, request: Request):
+    if code not in SUPPORTED_LOCALES:
+        code = DEFAULT_LOCALE
+    response = RedirectResponse(url=_safe_next(request.query_params.get("next")), status_code=302)
+    response.set_cookie("lang", code, max_age=60 * 60 * 24 * 365, samesite="lax")
+    return response
+
+
 @router.get("/partials/status", response_class=HTMLResponse)
-async def status_partial(request: Request):
+async def status_partial(request: Request, locale: str = Depends(resolve_locale)):
     async with async_session_factory() as session:
         last_run = (
             await session.execute(select(FetchRun).order_by(FetchRun.started_at.desc()).limit(1))
         ).scalar_one_or_none()
     running = is_refresh_running()
     response = templates.TemplateResponse(
-        request, "partials/status.html", {"last_run": last_run, "refresh_running": running}
+        request,
+        "partials/status.html",
+        {"last_run": last_run, "refresh_running": running, **_i18n_context(locale)},
     )
     # Tell the tables container (see index.html) to reload once a run has
     # finished, so newly found patches show up without a manual page refresh.
@@ -92,12 +121,12 @@ async def status_partial(request: Request):
 
 
 @router.get("/partials/tables", response_class=HTMLResponse)
-async def tables_partial(request: Request):
+async def tables_partial(request: Request, locale: str = Depends(resolve_locale)):
     grouped, _ = await _load_dashboard_data()
     return templates.TemplateResponse(
         request,
         "partials/all_tables.html",
-        {"grouped": grouped, "family_labels": FAMILY_LABELS, "family_order": FAMILY_ORDER},
+        {"grouped": grouped, "family_order": FAMILY_ORDER, **_i18n_context(locale)},
     )
 
 
@@ -108,13 +137,13 @@ async def trigger_refresh():
 
 
 @router.get("/product/{product_key}/history", response_class=HTMLResponse)
-async def product_history(request: Request, product_key: str):
+async def product_history(request: Request, product_key: str, locale: str = Depends(resolve_locale)):
     async with async_session_factory() as session:
         product = (
             await session.execute(select(Product).where(Product.key == product_key))
         ).scalar_one_or_none()
         if product is None:
-            return HTMLResponse("Nicht gefunden", status_code=404)
+            return HTMLResponse("Not found", status_code=404)
         patches = (
             await session.execute(
                 select(Patch)
@@ -123,5 +152,7 @@ async def product_history(request: Request, product_key: str):
             )
         ).scalars().all()
     return templates.TemplateResponse(
-        request, "partials/history_rows.html", {"product": product, "patches": patches}
+        request,
+        "partials/history_rows.html",
+        {"product": product, "patches": patches, **_i18n_context(locale)},
     )

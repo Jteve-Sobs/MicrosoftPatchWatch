@@ -1,21 +1,29 @@
 {% if patches %}
 <table class="history-table">
-  <thead><tr><th>Datum</th><th>KB</th><th>Build</th><th>Typ</th><th>Titel</th></tr></thead>
+  <thead>
+    <tr>
+      <th>{{ t('history.date') }}</th>
+      <th>{{ t('history.kb') }}</th>
+      <th>{{ t('history.build') }}</th>
+      <th>{{ t('history.type') }}</th>
+      <th>{{ t('history.title') }}</th>
+    </tr>
+  </thead>
   <tbody>
   {% for p in patches %}
     <tr>
-      <td>{{ p.release_date.strftime("%Y-%m-%d") if p.release_date else "–" }}</td>
+      <td>{{ format_date(p.release_date) }}</td>
       <td>
         {% if p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number or "–" }}</a>
         {% else %}{{ p.kb_number or "–" }}{% endif %}
       </td>
       <td>{{ p.build or "–" }}</td>
-      <td>{% if p.update_type %}<span class="badge badge-{{ p.update_type|lower|replace(' ', '-') }}">{{ p.update_type }}</span>{% endif %}</td>
+      <td>{% if p.update_type %}<span class="badge badge-{{ p.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (p.update_type|lower|replace(' ', '-'))) }}</span>{% endif %}</td>
       <td>{{ p.title or "" }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
 {% else %}
-<p class="muted">Noch keine Historie vorhanden.</p>
+<p class="muted">{{ t('history.empty') }}</p>
 {% endif %}

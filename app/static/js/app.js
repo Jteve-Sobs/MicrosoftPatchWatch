@@ -65,6 +65,8 @@ function patchwatchRefreshVisibility() {
 }
 
 function renderHiddenPanel(hidden) {
+  const i18n = window.PATCHWATCH_I18N || { hiddenNone: "No products hidden.", show: "Show" };
+
   const countEl = document.getElementById("hidden-count");
   if (countEl) countEl.textContent = String(hidden.size);
 
@@ -75,7 +77,7 @@ function renderHiddenPanel(hidden) {
   if (hidden.size === 0) {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Keine Produkte ausgeblendet.";
+    p.textContent = i18n.hiddenNone;
     panel.appendChild(p);
     return;
   }
@@ -91,7 +93,7 @@ function renderHiddenPanel(hidden) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "link-btn";
-    btn.textContent = "Einblenden";
+    btn.textContent = i18n.show;
     btn.addEventListener("click", () => patchwatchShowProduct(key));
     li.append(span, btn);
     list.appendChild(li);

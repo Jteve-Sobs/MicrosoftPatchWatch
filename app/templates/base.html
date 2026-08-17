@@ -1,18 +1,33 @@
 <!doctype html>
-<html lang="de">
+<html lang="{{ locale }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}WindowsPatchWatch{% endblock %}</title>
+  <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script>
+    // Small subset of strings the client-side hide/show JS needs to render
+    // without a round-trip; the rest of the UI is server-rendered per locale.
+    window.PATCHWATCH_I18N = {
+      hiddenNone: {{ t('nav.hidden_none')|tojson }},
+      show: {{ t('nav.show')|tojson }}
+    };
+  </script>
   <script src="/static/js/app.js" defer></script>
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/">🪟 WindowsPatchWatch</a>
-      <div id="status-bar" hx-get="/partials/status" hx-trigger="load, every 20s" hx-swap="innerHTML"></div>
+      <a class="brand" href="/">🪟 {{ t('app.title') }}</a>
+      <div class="header-right">
+        <div id="status-bar" hx-get="/partials/status" hx-trigger="load, every 20s" hx-swap="innerHTML"></div>
+        <nav class="lang-switch" aria-label="Language">
+          {% for code in ["en", "de"] %}
+          <a href="/lang/{{ code }}?next={{ request.url.path }}" class="{{ 'active' if locale == code else '' }}">{{ code|upper }}</a>
+          {% endfor %}
+        </nav>
+      </div>
     </div>
   </header>
 
@@ -21,13 +36,13 @@
   </main>
 
   <footer class="wrap footer">
-    Quellen:
+    {{ t('footer.sources') }}:
     <a href="https://learn.microsoft.com/en-us/windows/release-health/" target="_blank" rel="noopener">Windows Release Health (Microsoft Learn)</a>
     ·
     <a href="https://msrc.microsoft.com/update-guide" target="_blank" rel="noopener">MSRC Security Update API</a>
     ·
     <a href="https://github.com/dotnet/core/tree/main/release-notes" target="_blank" rel="noopener">dotnet/core Releases</a>.
-    Kein offizielles Microsoft-Produkt.
+    {{ t('footer.disclaimer') }}
   </footer>
 
   <!-- Fires once per page load: kicks off a debounced background refresh. -->

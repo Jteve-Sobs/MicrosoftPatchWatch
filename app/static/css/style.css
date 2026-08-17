@@ -68,6 +68,21 @@ body {
   text-decoration: none;
 }
 
+.header-right { display: flex; align-items: center; gap: 14px; }
+
+.lang-switch { display: flex; gap: 4px; }
+.lang-switch a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+}
+.lang-switch a:hover { border-color: var(--border); }
+.lang-switch a.active { color: var(--accent); border-color: var(--border); background: var(--surface-alt); }
+
 .status { font-size: 0.85rem; color: var(--text-muted); }
 .status-error { color: var(--sev-security); }
 .status-partial { color: var(--sev-oob); }

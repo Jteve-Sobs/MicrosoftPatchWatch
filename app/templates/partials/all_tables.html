@@ -2,11 +2,18 @@
   {% set items = grouped.get(family, []) %}
   {% if items %}
   <section class="family-section" data-family="{{ family }}">
-    <h2>{{ family_labels[family] }}</h2>
+    <h2>{{ t('family.' ~ family) }}</h2>
     <div class="table-wrap">
     <table class="patch-table">
       <thead>
-        <tr><th>Version</th><th>Aktuelles KB</th><th>Build</th><th>Typ</th><th>Datum</th><th></th></tr>
+        <tr>
+          <th>{{ t('table.version') }}</th>
+          <th>{{ t('table.latest_kb') }}</th>
+          <th>{{ t('table.build') }}</th>
+          <th>{{ t('table.type') }}</th>
+          <th>{{ t('table.date') }}</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
         {% for item in items|sort(attribute="product.display_name") %}
@@ -14,7 +21,7 @@
         {% set latest = item.latest %}
         {% set history_id = "hist-" ~ (product.key|replace(".", "-")) %}
         <tr class="product-row" data-key="{{ product.key }}" data-name="{{ product.display_name }}" data-search="{{ (product.display_name ~ ' ' ~ (latest.kb_number or ''))|lower }}">
-          <td>{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">LTSC</span>{% endif %}</td>
+          <td>{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.ltsc') }}</span>{% endif %}</td>
           <td>
             {% if latest and latest.kb_number %}
               <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.kb_number }}</a>
@@ -23,24 +30,24 @@
           <td>{{ latest.build if latest and latest.build else "–" }}</td>
           <td>
             {% if latest and latest.update_type %}
-              <span class="badge badge-{{ latest.update_type|lower|replace(' ', '-') }}">{{ latest.update_type }}</span>
+              <span class="badge badge-{{ latest.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (latest.update_type|lower|replace(' ', '-'))) }}</span>
             {% endif %}
           </td>
-          <td>{{ latest.release_date.strftime("%Y-%m-%d") if latest and latest.release_date else "–" }}</td>
+          <td>{{ format_date(latest.release_date) if latest else "–" }}</td>
           <td>
             <button type="button" class="history-btn" aria-expanded="false"
                     hx-get="/product/{{ product.key }}/history" hx-trigger="click once"
                     hx-target="#{{ history_id }}" hx-swap="innerHTML"
                     onclick="patchwatchToggleHistory(this)">
-              Verlauf <span class="chevron">▸</span>
+              {{ t('table.history') }} <span class="chevron">▸</span>
             </button>
-            <button type="button" class="hide-btn" title="Produkt ausblenden"
+            <button type="button" class="hide-btn" title="{{ t('table.hide') }}"
                     onclick="patchwatchHideProduct('{{ product.key }}')">✕</button>
           </td>
         </tr>
         <tr class="history-row" hidden>
           <td colspan="6">
-            <div class="history-body" id="{{ history_id }}"><p class="muted">Lädt…</p></div>
+            <div class="history-body" id="{{ history_id }}"><p class="muted">…</p></div>
           </td>
         </tr>
         {% endfor %}
@@ -52,5 +59,5 @@
 {% endfor %}
 
 {% if grouped.values()|map("length")|sum == 0 %}
-<p class="muted">Noch keine Daten vorhanden — die erste Prüfung läuft im Hintergrund. Diese Seite aktualisiert sich automatisch, sobald Ergebnisse da sind.</p>
+<p class="muted">{{ t('empty.no_data') }}</p>
 {% endif %}
