@@ -107,6 +107,15 @@ function patchwatchToggleHiddenPanel() {
   panel.hidden = !panel.hidden;
 }
 
+// Close the "hidden products" popup on any click outside it (or its toggle
+// button), like a normal dropdown/menu.
+document.addEventListener("click", (evt) => {
+  const panel = document.getElementById("hidden-panel");
+  if (!panel || panel.hidden) return;
+  if (evt.target.closest("#hidden-panel, .hidden-panel-wrap > .btn")) return;
+  panel.hidden = true;
+});
+
 // Which products currently have their "Verlauf" panel open. #tables gets
 // replaced wholesale by HTMX whenever a background refresh finishes (see
 // htmx:afterSwap below), which would otherwise silently re-collapse every
