@@ -73,6 +73,24 @@ oder `restic` an ein weiteres Ziel syncen.
 - `GET /api/products/{key}/patches` — volle Historie eines Produkts
 - `POST /refresh` — manuellen Refresh anstoßen (debounced)
 
+## Admin-Bereich
+
+`/admin` (Link im Footer) — für die Fälle, in denen ein Scraper mal
+danebenliegt: einzelne Patch-Einträge von Hand anlegen, korrigieren oder
+löschen. Geschützt per HTTP-Basic-Auth (Nutzername `admin`, Passwort aus
+`ADMIN_PASSWORD` in `.env` — unbedingt vor jedem öffentlichen Deploy ändern,
+Default ist `change-me`).
+
+Ein Eintrag, der hier bearbeitet oder neu angelegt wird, bekommt
+`manually_edited = true` und wird von künftigen automatischen Refreshes nicht
+mehr überschrieben (nur `last_seen_at` wird weiter aktualisiert) — sonst würde
+der nächste Scraper-Lauf die Korrektur einfach wieder zurücksetzen.
+
+`POST /admin/refresh` stößt — anders als der normale "Jetzt
+aktualisieren"-Button — sofort einen Refresh an, auch innerhalb des
+`MIN_REFRESH_INTERVAL_MINUTES`-Debounce-Fensters, damit man eine Korrektur
+gleich gegenprüfen kann.
+
 ## Bekannte Grenzen (bewusste Scope-Entscheidungen für v1)
 
 - **Kein Alembic**: Das DB-Schema wird beim Start per `create_all` angelegt.
@@ -107,11 +125,10 @@ oder `restic` an ein weiteres Ziel syncen.
   Server-Versionen im Vergleich)
 - **Suche/Filter serverseitig** statt nur client-seitig, plus Filter nach
   Update-Typ (Security/Preview/OOB)
-- **Admin-Bereich** zum manuellen Nachtragen/Korrigieren einzelner Einträge
-  (für die Fälle, in denen ein Scraper mal danebenliegt)
 - **Alembic-Migrationen**, sobald das Schema wächst
-- **Auth** fürs Adminer/Refresh-Endpoint, falls die Seite mal öffentlich
-  erreichbar wird
+- **Auth** fürs Adminer/`POST /refresh`-Endpoint, falls die Seite mal
+  öffentlich erreichbar wird (`/admin` hat seit kurzem eigenes Basic-Auth,
+  Adminer und der öffentliche Refresh-Button aber noch nicht)
 
 ## Tests
 

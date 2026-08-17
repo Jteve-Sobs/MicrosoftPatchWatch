@@ -38,11 +38,17 @@ def is_refresh_running() -> bool:
     return _refresh_lock.locked()
 
 
-async def maybe_trigger_refresh(trigger: str = "page-load") -> bool:
-    """Returns True if a refresh was (just) started."""
+async def maybe_trigger_refresh(trigger: str = "page-load", force: bool = False) -> bool:
+    """Returns True if a refresh was (just) started.
+
+    force=True skips the debounce window (but a run already in progress
+    still wins — starting a second concurrent refresh isn't safe, see
+    _refresh_lock). Used by /admin's "refresh now" so a just-made correction
+    can be checked against fresh data immediately, without waiting out
+    MIN_REFRESH_INTERVAL_MINUTES."""
     if _refresh_lock.locked():
         return False
-    if _last_run_started_at is not None:
+    if not force and _last_run_started_at is not None:
         elapsed = dt.datetime.now(dt.timezone.utc) - _last_run_started_at
         if elapsed < dt.timedelta(minutes=settings.min_refresh_interval_minutes):
             return False
@@ -177,9 +183,24 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
     # still land on an existing row.
     kb_filter = Patch.kb_number == kb_number
     build_filter = Patch.build == build
+
+    # Bumping last_seen_at doesn't clobber anything, so it always happens.
     await session.execute(
         update(Patch)
         .where(Patch.product_id == product_id, kb_filter, build_filter)
-        .values(last_seen_at=dt.datetime.now(dt.timezone.utc), title=info.title, severity=info.severity)
+        .values(last_seen_at=dt.datetime.now(dt.timezone.utc))
+    )
+    # But title/severity come from the scraper — skip overwriting them on a
+    # row a human has manually corrected via /admin, or the next refresh
+    # would silently revert the correction.
+    await session.execute(
+        update(Patch)
+        .where(
+            Patch.product_id == product_id,
+            kb_filter,
+            build_filter,
+            Patch.manually_edited.is_(False),
+        )
+        .values(title=info.title, severity=info.severity)
     )
     return False

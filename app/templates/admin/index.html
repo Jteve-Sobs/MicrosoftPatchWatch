@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ t('admin.title') }} – {{ t('app.title') }}{% endblock %}
+{% block content %}
+<section class="intro">
+  <h1>{{ t('admin.title') }}</h1>
+  <p>{{ t('admin.intro') }}</p>
+  <div class="toolbar">
+    <form method="post" action="/admin/refresh">
+      <button class="btn" type="submit" {% if refresh_running %}disabled{% endif %}>{{ t('admin.force_refresh') }}</button>
+    </form>
+    {% if request.query_params.get('refresh_started') == '1' %}
+      <span class="muted">{{ t('admin.refresh_started') }}</span>
+    {% endif %}
+  </div>
+</section>
+
+{% for family in ["windows_client", "windows_server", "dotnet_framework", "dotnet"] %}
+  {% set family_products = products|selectattr("family", "equalto", family)|list %}
+  {% if family_products %}
+  <section class="family-section">
+    <h2>{{ t('family.' ~ family) }}</h2>
+    <div class="table-wrap">
+    <table class="patch-table">
+      <tbody>
+        {% for product in family_products %}
+        <tr>
+          <td>
+            <a href="/admin/products/{{ product.key }}">{{ product.display_name }}</a>
+            {% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.server') if family == 'windows_server' else t('badge.ltsc') }}</span>{% endif %}
+          </td>
+          <td class="muted">{{ count_by_product.get(product.id, 0) }} {{ t('admin.patches_suffix') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+{% endfor %}
+{% endblock %}

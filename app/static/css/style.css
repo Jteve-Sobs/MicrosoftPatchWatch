@@ -230,6 +230,21 @@ a:hover { text-decoration: underline; }
 .badge-out-of-band { background: var(--sev-oob); }
 .badge-update { background: var(--sev-update); }
 .badge-ltsc { background: var(--sev-ltsc); }
+.badge-manual { background: var(--text-muted); }
+
+.admin-actions { display: flex; gap: 12px; align-items: center; white-space: nowrap; }
+.admin-actions form { display: inline; }
+
+.admin-form { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
+.admin-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--text-muted); }
+.admin-form input, .admin-form select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
 
 .history-btn {
   background: none;

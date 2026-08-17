@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ product.display_name }} – {{ t('admin.title') }}{% endblock %}
+{% block content %}
+<section class="intro">
+  <p><a href="/admin">{{ t('admin.back') }}</a></p>
+  <h1>{{ product.display_name }}</h1>
+  <div class="toolbar">
+    <a class="btn" href="/admin/products/{{ product.key }}/patches/new">{{ t('admin.new_patch') }}</a>
+  </div>
+</section>
+
+{% if patches %}
+{# Same per-family shape as the public overview table: .NET Framework/Windows
+   have a KB number (and link out via it), .NET/.NET Core don't — they only
+   have a release-notes link, so for those the title itself becomes the link
+   instead of showing a KB column that would just be "–" in every row. #}
+{% set show_kb = patches|selectattr("kb_number")|list|length > 0 %}
+{% set show_build = patches|selectattr("build")|list|length > 0 %}
+<div class="table-wrap">
+<table class="patch-table">
+  <thead>
+    <tr>
+      <th>{{ t('history.date') }}</th>
+      {% if show_kb %}<th>{{ t('history.kb') }}</th>{% endif %}
+      {% if show_build %}<th>{{ t('history.build') }}</th>{% endif %}
+      <th>{{ t('history.type') }}</th>
+      <th>{{ t('history.title') }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in patches %}
+    <tr>
+      <td>{{ format_date(p.release_date) }}</td>
+      {% if show_kb %}
+      <td>
+        {% if p.kb_number and p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number }}</a>
+        {% else %}{{ p.kb_number or "–" }}{% endif %}
+      </td>
+      {% endif %}
+      {% if show_build %}
+      <td>
+        {% if not p.kb_number and p.kb_url and p.build %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.build }}</a>
+        {% else %}{{ p.build or "–" }}{% endif %}
+      </td>
+      {% endif %}
+      <td>
+        {% if p.update_type %}<span class="badge badge-{{ p.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (p.update_type|lower|replace(' ', '-'))) }}</span>{% endif %}
+        {% if p.manually_edited %}<span class="badge badge-manual">{{ t('admin.manual_badge') }}</span>{% endif %}
+      </td>
+      <td>{{ p.title or "" }}</td>
+      <td class="admin-actions">
+        <a href="/admin/patches/{{ p.id }}/edit">{{ t('admin.edit') }}</a>
+        <form method="post" action="/admin/patches/{{ p.id }}/delete" onsubmit="return confirm({{ t('admin.delete_confirm')|tojson }});">
+          <button type="submit" class="link-btn">{{ t('admin.delete') }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">{{ t('admin.no_patches') }}</p>
+{% endif %}
+{% endblock %}

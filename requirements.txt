@@ -11,3 +11,5 @@ beautifulsoup4==4.12.3
 lxml==5.3.0
 apscheduler==3.10.4
 python-dotenv==1.0.1
+# Needed by FastAPI's Form(...) parsing — used by the /admin patch-edit forms.
+python-multipart==0.0.12

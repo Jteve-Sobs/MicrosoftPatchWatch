@@ -23,6 +23,11 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    # HTTP Basic Auth for /admin (username is fixed as "admin" — this is a
+    # single-operator tool, not a multi-user system). Change this in .env
+    # before ever exposing the app beyond localhost.
+    admin_password: str = "change-me"
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )

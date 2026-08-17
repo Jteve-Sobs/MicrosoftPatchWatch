@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ (t('admin.edit') if patch else t('admin.new_patch')) }} – {{ product.display_name }}{% endblock %}
+{% block content %}
+<section class="intro">
+  <p><a href="/admin/products/{{ product.key }}">{{ t('admin.back') }}</a></p>
+  <h1>{{ product.display_name }}</h1>
+</section>
+
+{% if error %}<p class="status status-error">{{ error }}</p>{% endif %}
+
+<form method="post" class="admin-form"
+      action="{{ '/admin/patches/' ~ patch.id ~ '/edit' if patch else '/admin/products/' ~ product.key ~ '/patches/new' }}">
+  <label>
+    {{ t('admin.field.date') }}
+    <input type="date" name="release_date" value="{{ patch.release_date.isoformat() if patch and patch.release_date else '' }}">
+    <span class="muted">{{ t('admin.field.date_hint') }}</span>
+  </label>
+  <label>
+    {{ t('admin.field.kb') }}
+    <input type="text" name="kb_number" value="{{ patch.kb_number if patch else '' }}" placeholder="KB5000000">
+  </label>
+  <label>
+    {{ t('admin.field.build') }}
+    <input type="text" name="build" value="{{ patch.build if patch else '' }}">
+  </label>
+  <label>
+    {{ t('admin.field.type') }}
+    <select name="update_type">
+      <option value="">–</option>
+      {% for choice in update_types %}
+      <option value="{{ choice }}" {% if patch and patch.update_type == choice %}selected{% endif %}>{{ choice }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    {{ t('admin.field.title') }}
+    <input type="text" name="title" value="{{ patch.title if patch else '' }}">
+  </label>
+  <label>
+    {{ t('admin.field.severity') }}
+    <input type="text" name="severity" value="{{ patch.severity if patch else '' }}">
+  </label>
+  <label>
+    {{ t('admin.field.kb_url') }}
+    <input type="url" name="kb_url" value="{{ patch.kb_url if patch else '' }}" placeholder="https://support.microsoft.com/help/...">
+  </label>
+  <div class="toolbar">
+    <button class="btn" type="submit">{{ t('admin.save') }}</button>
+    <a class="btn btn-secondary" href="/admin/products/{{ product.key }}">{{ t('admin.cancel') }}</a>
+  </div>
+</form>
+{% endblock %}

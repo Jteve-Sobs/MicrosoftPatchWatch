@@ -49,7 +49,11 @@
           </td>
           {% endif %}
           {% if show_build %}
-          <td data-sort="{{ latest.build if latest and latest.build else '' }}">{{ latest.build if latest and latest.build else "–" }}</td>
+          <td data-sort="{{ latest.build if latest and latest.build else '' }}">
+            {% if latest and latest.build and not latest.kb_number and latest.kb_url %}
+              <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.build }}</a>
+            {% else %}{{ latest.build if latest and latest.build else "–" }}{% endif %}
+          </td>
           {% endif %}
           <td data-sort="{{ latest.update_type if latest and latest.update_type else '' }}">
             {% if latest and latest.update_type %}

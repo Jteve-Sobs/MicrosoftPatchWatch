@@ -43,9 +43,12 @@ class Product(Base):
 
 
 class Patch(Base):
-    """One KB / build / release for a product. Rows are never deleted, so the
-    full set of rows for a product IS its history; the newest release_date is
-    the 'current' patch level."""
+    """One KB / build / release for a product. Rows are never deleted or
+    edited by the refresh pipeline itself, so the full set of rows for a
+    product IS its history; the newest release_date is the 'current' patch
+    level. The one exception is /admin (see routers/admin.py): a human can
+    add/edit/delete rows there to correct a scraper mistake — see
+    manually_edited below for how those corrections survive later refreshes."""
 
     __tablename__ = "patches"
     __table_args__ = (
@@ -70,6 +73,14 @@ class Patch(Base):
     severity: Mapped[str | None] = mapped_column(String(30), nullable=True)
     kb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(60))
+
+    # Set by /admin whenever a human creates or edits this row. Once set, the
+    # refresh pipeline's upsert (_upsert_patch) stops overwriting title/
+    # severity from the scraper on that row — otherwise the next refresh
+    # would silently revert a manual correction, which defeats the point of
+    # having one. last_seen_at still gets bumped either way (that's just
+    # "still confirmed to exist", not a content overwrite).
+    manually_edited: Mapped[bool] = mapped_column(Boolean, default=False)
 
     first_seen_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[dt.datetime] = mapped_column(
