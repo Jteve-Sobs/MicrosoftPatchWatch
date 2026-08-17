@@ -40,7 +40,7 @@
              order (see _version_sort_key in web.py), not the display name —
              version *codes* mix incompatible schemes (e.g. "1607" vs "21H2"),
              so parsing the text client-side would reorder them wrong again. #}
-          <td data-sort="{{ loop.index0 }}">{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.ltsc') }}</span>{% endif %}</td>
+          <td data-sort="{{ loop.index0 }}">{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.server') if family == 'windows_server' else t('badge.ltsc') }}</span>{% endif %}</td>
           {% if show_kb %}
           <td data-sort="{{ latest.kb_number if latest and latest.kb_number else '' }}">
             {% if latest and latest.kb_number %}

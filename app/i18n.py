@@ -71,6 +71,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "badge.out-of-band": "Out-of-Band",
         "badge.update": "Update",
         "badge.ltsc": "LTSC",
+        "badge.server": "Server",
     },
     "de": {
         "app.title": "WindowsPatchWatch",
@@ -123,6 +124,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "badge.out-of-band": "Außerplanmäßig",
         "badge.update": "Update",
         "badge.ltsc": "LTSC",
+        "badge.server": "Server",
     },
 }
 
