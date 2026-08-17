@@ -1,0 +1,26 @@
+{
+  "channel-version": "1.0",
+  "latest-release": "1.0.16",
+  "latest-release-date": "2019-05-14",
+  "support-phase": "eol",
+  "releases": [
+    {
+      "release-date": "2019-05-14",
+      "release-version": "1.0.16",
+      "security": true,
+      "release-notes": "https://github.com/dotnet/core/blob/main/release-notes/1.0/1.0.16/1.0.16.md"
+    },
+    {
+      "release-date": "2019-03-12",
+      "release-version": "1.0.15",
+      "security": true,
+      "release-notes": "https://github.com/dotnet/core/blob/main/release-notes/1.0/1.0.15/1.0.15.md"
+    },
+    {
+      "release-date": "2019-02-12",
+      "release-version": "1.0.14",
+      "security": true,
+      "release-notes": "https://github.com/dotnet/core/blob/main/release-notes/1.0/1.0.14/1.0.14.md"
+    }
+  ]
+}

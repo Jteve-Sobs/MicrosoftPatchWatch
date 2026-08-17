@@ -1,0 +1,113 @@
+{
+  "@odata.context": "https://api.msrc.microsoft.com/$metadata#Updates",
+  "value": [
+    {
+      "ID": "2026-Aug",
+      "Alias": "2026-Aug",
+      "DocumentTitle": "August 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-08-11T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-17T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Aug"
+    },
+    {
+      "ID": "2026-Jul",
+      "Alias": "2026-Jul",
+      "DocumentTitle": "July 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-07-14T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-17T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Jul"
+    },
+    {
+      "ID": "2026-Jun",
+      "Alias": "2026-Jun",
+      "DocumentTitle": "June 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-06-09T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-13T00:15:42Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Jun"
+    },
+    {
+      "ID": "2026-May",
+      "Alias": "2026-May",
+      "DocumentTitle": "May 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-05-12T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-14T18:13:42Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-May"
+    },
+    {
+      "ID": "2026-Apr",
+      "Alias": "2026-Apr",
+      "DocumentTitle": "April 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-04-14T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-14T07:00:00Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Apr"
+    },
+    {
+      "ID": "2026-Mar",
+      "Alias": "2026-Mar",
+      "DocumentTitle": "March 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-03-10T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:52:54Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Mar"
+    },
+    {
+      "ID": "2026-Feb",
+      "Alias": "2026-Feb",
+      "DocumentTitle": "February 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-02-10T08:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:52:06Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Feb"
+    },
+    {
+      "ID": "2026-Jan",
+      "Alias": "2026-Jan",
+      "DocumentTitle": "January 2026 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2026-01-13T08:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:51:03Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Jan"
+    },
+    {
+      "ID": "2025-Dec",
+      "Alias": "2025-Dec",
+      "DocumentTitle": "December 2025 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2025-12-09T00:00:00Z",
+      "CurrentReleaseDate": "2026-08-14T18:11:46Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Dec"
+    },
+    {
+      "ID": "2025-Nov",
+      "Alias": "2025-Nov",
+      "DocumentTitle": "November 2025 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2025-11-11T00:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:47:02Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Nov"
+    },
+    {
+      "ID": "2025-Oct",
+      "Alias": "2025-Oct",
+      "DocumentTitle": "October 2025 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2025-10-14T07:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:44:52Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Oct"
+    },
+    {
+      "ID": "2025-Sep",
+      "Alias": "2025-Sep",
+      "DocumentTitle": "September 2025 Security Updates",
+      "Severity": null,
+      "InitialReleaseDate": "2025-09-09T00:00:00Z",
+      "CurrentReleaseDate": "2026-08-10T14:56:33Z",
+      "CvrfUrl": "https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2025-Sep"
+    }
+  ]
+}

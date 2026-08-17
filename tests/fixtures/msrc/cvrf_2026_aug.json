@@ -1,0 +1,285 @@
+{
+  "DocumentTitle": {
+    "Value": "August 2026 Security Updates"
+  },
+  "ProductTree": {
+    "FullProductName": [
+      {
+        "ProductID": "11650-10852",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 4.8 on Windows 10 Version 1607 for 32-bit Systems"
+      },
+      {
+        "ProductID": "11650-10853",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 4.8 on Windows 10 Version 1607 for x64-based Systems"
+      },
+      {
+        "ProductID": "11650-10816",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 4.8 on Windows Server 2016"
+      },
+      {
+        "ProductID": "11650-10855",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 4.8 on Windows Server 2016 (Server Core installation)"
+      },
+      {
+        "ProductID": "11676-11568",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows 10 Version 1809 for 32-bit Systems"
+      },
+      {
+        "ProductID": "11676-11569",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows 10 Version 1809 for x64-based Systems"
+      },
+      {
+        "ProductID": "11676-11570",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows 10 Version 1809 for ARM64-based Systems"
+      },
+      {
+        "ProductID": "11676-11571",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows Server 2019"
+      },
+      {
+        "ProductID": "11676-11572",
+        "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
+        "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows Server 2019 (Server Core installation)"
+      }
+    ]
+  },
+  "Vulnerability": [
+    {
+      "CVE": "CVE-2026-62872",
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5120702"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120702",
+          "ProductID": [
+            "11650-10855",
+            "11650-10853",
+            "11650-10816",
+            "11650-10852"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120702",
+          "ProductID": [
+            "11650-10855",
+            "11650-10853",
+            "11650-10816",
+            "11650-10852"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120702"
+        },
+        {
+          "Description": {
+            "Value": "5120703"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120703",
+          "ProductID": [
+            "11676-11569",
+            "11676-11568",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "2.0.50727.9070 & 3.0.30729.9068 & 4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120703",
+          "ProductID": [
+            "11676-11569",
+            "11676-11568",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120703"
+        }
+      ]
+    },
+    {
+      "CVE": "CVE-2026-65810",
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5120702"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120702",
+          "ProductID": [
+            "11650-10852",
+            "11650-10853",
+            "11650-10816",
+            "11650-10855"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120702",
+          "ProductID": [
+            "11650-10852",
+            "11650-10853",
+            "11650-10816",
+            "11650-10855"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120702"
+        },
+        {
+          "Description": {
+            "Value": "5120703"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120703",
+          "ProductID": [
+            "11676-11568",
+            "11676-11569",
+            "11676-11570",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "2.0.50727.9070 & 3.0.30729.9068 & 4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120703",
+          "ProductID": [
+            "11676-11568",
+            "11676-11569",
+            "11676-11570",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120703"
+        }
+      ]
+    },
+    {
+      "CVE": "CVE-2026-70354",
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5120703"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120703",
+          "ProductID": [
+            "11676-11568",
+            "11676-11569",
+            "11676-11570",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "2.0.50727.9070 & 3.0.30729.9068 & 4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120703",
+          "ProductID": [
+            "11676-11568",
+            "11676-11569",
+            "11676-11570",
+            "11676-11571",
+            "11676-11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120703"
+        },
+        {
+          "Description": {
+            "Value": "5120702"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5120702",
+          "ProductID": [
+            "11650-10855",
+            "11650-10853",
+            "11650-10852",
+            "11650-10816"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Maybe"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "4.8.4805.0"
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5120702",
+          "ProductID": [
+            "11650-10855",
+            "11650-10853",
+            "11650-10852",
+            "11650-10816"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "SubType": "5120702"
+        }
+      ]
+    }
+  ]
+}

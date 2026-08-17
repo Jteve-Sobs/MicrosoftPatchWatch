@@ -1,0 +1,5 @@
+# Test-only dependencies — not needed to run the app itself (see
+# requirements.txt for that), so they're kept out of the Docker image.
+-r requirements.txt
+pytest==8.3.3
+pytest-asyncio==0.24.0

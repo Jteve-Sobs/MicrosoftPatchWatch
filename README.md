@@ -109,11 +109,28 @@ oder `restic` an ein weiteres Ziel syncen.
   Update-Typ (Security/Preview/OOB)
 - **Admin-Bereich** zum manuellen Nachtragen/Korrigieren einzelner Einträge
   (für die Fälle, in denen ein Scraper mal danebenliegt)
-- **Tests** für die Parser (Fixtures mit eingefrorenem HTML/JSON der Quellen,
-  damit ein Seitenumbau bei Microsoft schnell auffällt)
 - **Alembic-Migrationen**, sobald das Schema wächst
 - **Auth** fürs Adminer/Refresh-Endpoint, falls die Seite mal öffentlich
   erreichbar wird
+
+## Tests
+
+Parser-Tests laufen gegen eingefrorene, echte (aber gekürzte) HTML/JSON-
+Antworten der Quellen unter `tests/fixtures/` — kein Netzwerkzugriff nötig,
+kein laufender Stack nötig. Zweck: wenn Microsoft/dotnet mal die Seiten-/
+Feed-Struktur ändert, merkt man das daran, dass der *echte* Fetcher im
+laufenden Betrieb anfängt zu scheitern (Fehler landen im `FetchRun`),
+während diese Tests weiter grün gegen die alte, eingefrorene Struktur
+laufen — die Diskrepanz zeigt genau, was sich geändert hat. Siehe
+`tests/fixtures/README.md` für die Herkunft jedes Fixtures.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+(Die Test-Dependencies sind bewusst nicht im Docker-Image — `requirements.txt`
+bleibt schlank für den Produktivbetrieb.)
 
 ## Projektstruktur
 
@@ -127,4 +144,7 @@ app/
   refresh_service.py       # Orchestrierung + Upsert-Logik
   scheduler.py               # APScheduler-Job
   main.py                     # FastAPI-App + Lifespan
+tests/
+  fixtures/                    # eingefrorenes, echtes HTML/JSON je Quelle
+  test_*.py                     # ein Testmodul je Fetcher
 ```
