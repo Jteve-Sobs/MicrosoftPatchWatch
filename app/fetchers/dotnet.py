@@ -18,7 +18,6 @@ from app.models import ProductFamily
 logger = logging.getLogger("patchwatch.fetchers.dotnet")
 
 INDEX_URL = "https://raw.githubusercontent.com/dotnet/core/main/release-notes/releases-index.json"
-FULL_HISTORY_PHASES = {"active", "maintenance", "preview", "go-live"}
 MAX_CONCURRENT_REQUESTS = 5
 
 
@@ -69,10 +68,15 @@ class DotNetFetcher(BaseFetcher):
             )
         )
 
-        phase = entry.get("support-phase")
         releases_url = entry.get("releases.json")
 
-        if phase in FULL_HISTORY_PHASES and releases_url:
+        # dotnet/core publishes a releases.json for every channel, including
+        # long-EOL ones (verified: even .NET Core 1.0 still has one) — so we
+        # always fetch the full history here rather than gating on
+        # support-phase. Besides giving richer "Verlauf" data, this also
+        # means every product gets a real *first*-release date, which the
+        # dashboard needs to sort oldest-to-newest correctly.
+        if releases_url:
             try:
                 async with semaphore:
                     resp = await client.get(releases_url, headers={"Accept": "application/json"})

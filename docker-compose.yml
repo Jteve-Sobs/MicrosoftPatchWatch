@@ -38,5 +38,26 @@ services:
     ports:
       - "8081:8080"
 
+  # Automatic pg_dump backups with rotation, written to ./backups/ as plain
+  # gzip'd .sql.gz files (readable by any Postgres restore, not tied to this
+  # image). See README "Backups" for restore instructions.
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-patchwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patchwatch}
+      POSTGRES_DB: ${POSTGRES_DB:-patchwatch}
+      SCHEDULE: ${BACKUP_SCHEDULE:-@daily}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+      BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-12}
+      BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-12}
+    volumes:
+      - ./backups:/backups
+
 volumes:
   db_data:

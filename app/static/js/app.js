@@ -107,19 +107,167 @@ function patchwatchToggleHiddenPanel() {
   panel.hidden = !panel.hidden;
 }
 
+// Which products currently have their "Verlauf" panel open. #tables gets
+// replaced wholesale by HTMX whenever a background refresh finishes (see
+// htmx:afterSwap below), which would otherwise silently re-collapse every
+// open history panel — this set is what lets us reopen them afterwards.
+const patchwatchOpenHistory = new Set();
+
 function patchwatchToggleHistory(button) {
-  const historyRow = button.closest("tr").nextElementSibling;
+  const row = button.closest("tr");
+  const historyRow = row.nextElementSibling;
   if (!historyRow || !historyRow.classList.contains("history-row")) return;
   historyRow.hidden = !historyRow.hidden;
   button.setAttribute("aria-expanded", String(!historyRow.hidden));
   button.classList.toggle("is-open", !historyRow.hidden);
+  const key = row.dataset.key;
+  if (historyRow.hidden) {
+    patchwatchOpenHistory.delete(key);
+  } else {
+    patchwatchOpenHistory.add(key);
+  }
 }
 
+// Re-opens (and re-fetches, since the swapped-in row starts collapsed with
+// no content loaded) every history panel that was open before the table got
+// replaced.
+//
+// This used to simulate a click on the history button, relying on HTMX
+// having already wired up its hx-trigger listener on the freshly-swapped
+// button by the time htmx:afterSwap runs. That's timing-dependent and
+// unreliable in practice: the row reopens but htmx's listener isn't there
+// yet, so the fetch never fires and the panel stays stuck on the "…"
+// placeholder. Calling htmx.ajax() directly sidesteps that entirely — it's
+// not waiting on any listener, just performs the same GET/target/swap the
+// button's hx-get would have.
+function patchwatchReopenHistory() {
+  if (patchwatchOpenHistory.size === 0) return;
+  document.querySelectorAll(".product-row").forEach((row) => {
+    const key = row.dataset.key;
+    if (!patchwatchOpenHistory.has(key)) return;
+    const historyRow = row.nextElementSibling;
+    const button = row.querySelector(".history-btn");
+    const body = historyRow?.querySelector(".history-body");
+    if (!historyRow || !button || !body) return;
+
+    historyRow.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    button.classList.add("is-open");
+    htmx.ajax("GET", `/product/${encodeURIComponent(key)}/history`, { target: body, swap: "innerHTML" });
+  });
+}
+
+// --- Sortable table columns ---------------------------------------------
+// Natural compare: numeric chunks compare as numbers, so "10" sorts after
+// "6" instead of before it (string sort would put ".NET 10.0" ahead of
+// ".NET 6.0"). Mirrors the natural sort used server-side for the default
+// row order, see _natural_sort_key in app/routers/web.py.
+function patchwatchNaturalCompare(a, b) {
+  const chunks = /(\d+)/;
+  const partsA = a.split(chunks);
+  const partsB = b.split(chunks);
+  const len = Math.max(partsA.length, partsB.length);
+  for (let i = 0; i < len; i++) {
+    const partA = partsA[i] || "";
+    const partB = partsB[i] || "";
+    if (partA === partB) continue;
+    const numA = /^\d+$/.test(partA) ? Number(partA) : null;
+    const numB = /^\d+$/.test(partB) ? Number(partB) : null;
+    if (numA !== null && numB !== null) {
+      if (numA !== numB) return numA - numB;
+    } else {
+      const cmp = partA.toLowerCase().localeCompare(partB.toLowerCase());
+      if (cmp !== 0) return cmp;
+    }
+  }
+  return 0;
+}
+
+// Remembers the active sort per product family (table), keyed by
+// data-family on the enclosing <section>. Needed because the tables are
+// swapped wholesale via HTMX after a background refresh (see below) — a
+// plain in-DOM sort would otherwise silently reset on every refresh.
+const patchwatchSortState = {};
+
+function patchwatchApplySort(table, col, dir) {
+  const headers = Array.from(table.querySelectorAll("thead th"));
+  headers.forEach((th) => {
+    if (!th.classList.contains("sortable")) return;
+    th.setAttribute("aria-sort", th.dataset.sortCol === col ? (dir === "asc" ? "ascending" : "descending") : "none");
+  });
+  const colIndex = headers.findIndex((th) => th.dataset.sortCol === col);
+  if (colIndex === -1) return;
+
+  const tbody = table.querySelector("tbody");
+  const rows = Array.from(tbody.children);
+  const pairs = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (!rows[i].classList.contains("product-row")) continue;
+    const historyRow = rows[i + 1] && rows[i + 1].classList.contains("history-row") ? rows[i + 1] : null;
+    pairs.push({ row: rows[i], historyRow });
+  }
+
+  const mult = dir === "asc" ? 1 : -1;
+  pairs.sort((a, b) => {
+    const cellA = a.row.children[colIndex];
+    const cellB = b.row.children[colIndex];
+    const valA = (cellA && cellA.dataset.sort) || "";
+    const valB = (cellB && cellB.dataset.sort) || "";
+    // Missing values ("–") always sort to the bottom, in either direction.
+    if (!valA && !valB) return 0;
+    if (!valA) return 1;
+    if (!valB) return -1;
+    return patchwatchNaturalCompare(valA, valB) * mult;
+  });
+
+  const frag = document.createDocumentFragment();
+  pairs.forEach(({ row, historyRow }) => {
+    frag.appendChild(row);
+    if (historyRow) frag.appendChild(historyRow);
+  });
+  tbody.appendChild(frag);
+}
+
+function patchwatchApplyStoredSort(table) {
+  const family = table.closest(".family-section")?.dataset.family;
+  const state = family ? patchwatchSortState[family] : undefined;
+  if (state) patchwatchApplySort(table, state.col, state.dir);
+}
+
+function patchwatchSortTableBy(th) {
+  const table = th.closest("table");
+  const family = table && table.closest(".family-section")?.dataset.family;
+  if (!table || !family) return;
+  const col = th.dataset.sortCol;
+  const current = patchwatchSortState[family];
+  const dir = current && current.col === col && current.dir === "asc" ? "desc" : "asc";
+  patchwatchSortState[family] = { col, dir };
+  patchwatchApplySort(table, col, dir);
+}
+
+document.addEventListener("click", (evt) => {
+  const th = evt.target.closest("th.sortable");
+  if (th) patchwatchSortTableBy(th);
+});
+document.addEventListener("keydown", (evt) => {
+  if (evt.key !== "Enter" && evt.key !== " ") return;
+  const th = evt.target.closest("th.sortable");
+  if (!th) return;
+  evt.preventDefault();
+  patchwatchSortTableBy(th);
+});
+
 // The product table is swapped wholesale via HTMX after a background refresh
-// (see index.html #tables); re-apply hidden/filter state to the fresh rows.
+// (see index.html #tables); re-apply hidden/filter state and any active
+// column sort to the fresh rows.
 document.body.addEventListener("htmx:afterSwap", (evt) => {
   if (evt.target && evt.target.id === "tables") {
     patchwatchRefreshVisibility();
+    evt.target.querySelectorAll(".patch-table").forEach(patchwatchApplyStoredSort);
+    patchwatchReopenHistory();
   }
 });
-document.addEventListener("DOMContentLoaded", patchwatchRefreshVisibility);
+document.addEventListener("DOMContentLoaded", () => {
+  patchwatchRefreshVisibility();
+  document.querySelectorAll(".patch-table").forEach(patchwatchApplyStoredSort);
+});

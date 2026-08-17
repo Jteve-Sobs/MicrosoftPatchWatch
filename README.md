@@ -45,6 +45,28 @@ Der erste Durchlauf startet automatisch beim Container-Start
 (`FETCH_ON_STARTUP=true`) und befüllt die Datenbank; das dauert je nach
 Quellen ein bis zwei Minuten.
 
+## Backups
+
+Der `db-backup`-Service (`prodrigestivill/postgres-backup-local`) läuft
+automatisch mit und legt gzip'te `pg_dump`-Dateien unter `./backups/` ab —
+Standard ist ein täglicher Dump, mit Rotation (Default: 30 Tage, 12 Wochen,
+12 Monate, konfigurierbar über `BACKUP_KEEP_*` / `BACKUP_SCHEDULE` in `.env`).
+Es gibt Unterordner `daily/`, `weekly/`, `monthly/` sowie `last/` mit dem
+jeweils neuesten Dump. Die Dateien sind reine `.sql.gz`, also unabhängig vom
+Backup-Image mit jedem Postgres restorebar.
+
+**Restore** (überschreibt die laufende DB — Container vorher stoppen oder auf
+eine leere DB zielen):
+
+```bash
+gunzip -c backups/daily/patchwatch-<TIMESTAMP>.sql.gz | \
+  docker compose exec -T db psql -U ${POSTGRES_USER:-patchwatch} -d ${POSTGRES_DB:-patchwatch}
+```
+
+`./backups/` liegt nur lokal auf dieser Maschine (nicht in Git, siehe
+`.gitignore`) — für eine Offsite-Kopie den Ordner selbst z.B. per `rclone`
+oder `restic` an ein weiteres Ziel syncen.
+
 ## JSON-API
 
 - `GET /api/products` — Liste aller erkannten Produkte/Versionen

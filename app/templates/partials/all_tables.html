@@ -19,42 +19,46 @@
     <table class="patch-table">
       <thead>
         <tr>
-          <th>{{ t('table.version') }}</th>
-          {% if show_kb %}<th>{{ t('table.latest_kb') }}</th>{% endif %}
-          {% if show_build %}<th>{{ t('table.build') }}</th>{% endif %}
-          <th>{{ t('table.type') }}</th>
-          <th>{{ t('table.date') }}</th>
-          {% if show_eol %}<th>{{ t('table.eol') }}</th>{% endif %}
+          <th class="sortable" data-sort-col="version" aria-sort="ascending" tabindex="0" role="button">{{ t('table.version') }}</th>
+          {% if show_kb %}<th class="sortable" data-sort-col="kb" aria-sort="none" tabindex="0" role="button">{{ t('table.latest_kb') }}</th>{% endif %}
+          {% if show_build %}<th class="sortable" data-sort-col="build" aria-sort="none" tabindex="0" role="button">{{ t('table.build') }}</th>{% endif %}
+          <th class="sortable" data-sort-col="type" aria-sort="none" tabindex="0" role="button">{{ t('table.type') }}</th>
+          <th class="sortable" data-sort-col="date" aria-sort="none" tabindex="0" role="button">{{ t('table.date') }}</th>
+          {% if show_eol %}<th class="sortable" data-sort-col="eol" aria-sort="none" tabindex="0" role="button">{{ t('table.eol') }}</th>{% endif %}
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {% for item in items|sort(attribute="product.display_name") %}
+        {% for item in items %}
         {% set product = item.product %}
         {% set latest = item.latest %}
         {% set history_id = "hist-" ~ (product.key|replace(".", "-")) %}
         {% set eol = product.support_end_date %}
         {% set eol_state = eol_status(eol) %}
         <tr class="product-row" data-key="{{ product.key }}" data-name="{{ product.display_name }}" data-search="{{ (product.display_name ~ ' ' ~ (latest.kb_number or ''))|lower }}">
-          <td>{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.ltsc') }}</span>{% endif %}</td>
+          {# Sort value is the row's rank in the already correct chronological
+             order (see _version_sort_key in web.py), not the display name —
+             version *codes* mix incompatible schemes (e.g. "1607" vs "21H2"),
+             so parsing the text client-side would reorder them wrong again. #}
+          <td data-sort="{{ loop.index0 }}">{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.ltsc') }}</span>{% endif %}</td>
           {% if show_kb %}
-          <td>
+          <td data-sort="{{ latest.kb_number if latest and latest.kb_number else '' }}">
             {% if latest and latest.kb_number %}
               <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.kb_number }}</a>
             {% else %}–{% endif %}
           </td>
           {% endif %}
           {% if show_build %}
-          <td>{{ latest.build if latest and latest.build else "–" }}</td>
+          <td data-sort="{{ latest.build if latest and latest.build else '' }}">{{ latest.build if latest and latest.build else "–" }}</td>
           {% endif %}
-          <td>
+          <td data-sort="{{ latest.update_type if latest and latest.update_type else '' }}">
             {% if latest and latest.update_type %}
               <span class="badge badge-{{ latest.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (latest.update_type|lower|replace(' ', '-'))) }}</span>
             {% endif %}
           </td>
-          <td>{{ format_date(latest.release_date) if latest else "–" }}</td>
+          <td data-sort="{{ latest.release_date.isoformat() if latest and latest.release_date else '' }}">{{ format_date(latest.release_date) if latest else "–" }}</td>
           {% if show_eol %}
-          <td>
+          <td data-sort="{{ eol.isoformat() if eol else '' }}">
             {% if eol %}
               <span class="eol-value eol-{{ eol_state }}"
                     {% if eol_state == "ended" %}title="{{ t('eol.ended') }}"{% elif eol_state == "soon" %}title="{{ t('eol.ending_soon') }}"{% endif %}>{{ format_date(eol) }}</span>

@@ -1,4 +1,6 @@
+import datetime as dt
 import json
+import re
 from functools import partial
 
 from fastapi import APIRouter, Depends, Request
@@ -29,6 +31,25 @@ templates.env.filters["tojson"] = lambda value: Markup(json.dumps(value))
 
 FAMILY_ORDER = ["windows_client", "windows_server", "dotnet_framework", "dotnet"]
 
+_NATSORT_SPLIT_RE = re.compile(r"(\d+)")
+
+
+def _natural_sort_key(text: str) -> tuple:
+    """Splits e.g. '.NET 10.0' into [".net ", 10, ".", 0, ""] so version
+    numbers compare numerically instead of lexicographically (plain string
+    sort puts ".NET 10.0" before ".NET 6.0" since "1" < "6"). Every token is
+    wrapped as (is_text, value) so tuples of mixed digit/non-digit tokens
+    stay comparable across differently-shaped strings.
+
+    Only used as a tie-breaker/fallback below — Windows version *codes* mix
+    incompatible numbering schemes in one family (e.g. "1507"..."2004" are
+    YYMM, but "20H2"/"21H1"... split into much smaller digit runs), so a
+    numeric compare of the codes themselves would rank "20H2" ahead of
+    "1507" even though 1507 shipped five years earlier. Actual release date
+    (see _version_sort_key) is the real ordering; this only breaks ties."""
+    tokens = _NATSORT_SPLIT_RE.split(text or "")
+    return tuple((0, int(tok)) if tok.isdigit() else (1, tok.lower()) for tok in tokens)
+
 
 def _i18n_context(locale: str) -> dict:
     return {
@@ -48,9 +69,23 @@ def _safe_next(path: str | None) -> str:
 
 async def _load_dashboard_data():
     async with async_session_factory() as session:
+        # Ordered by family only here; within a family, rows are ordered by
+        # each product's oldest patch date further down (_version_sort_key)
+        # so "oldest on top" reflects actual release history rather than
+        # trying to numerically parse Windows/.NET version codes.
         products = (
-            await session.execute(select(Product).order_by(Product.family, Product.display_name))
+            await session.execute(select(Product).order_by(Product.family))
         ).scalars().all()
+
+        oldest_dates: dict[int, dt.date] = dict(
+            (
+                await session.execute(
+                    select(Patch.product_id, func.min(Patch.release_date))
+                    .where(Patch.release_date.is_not(None))
+                    .group_by(Patch.product_id)
+                )
+            ).all()
+        )
 
         latest_subq = (
             select(Patch.product_id, func.max(Patch.release_date).label("max_date"))
@@ -82,6 +117,21 @@ async def _load_dashboard_data():
             grouped.setdefault(product.family, []).append(
                 {"product": product, "latest": latest_by_product.get(product.id)}
             )
+
+        def _version_sort_key(item: dict) -> tuple:
+            product = item["product"]
+            oldest = oldest_dates.get(product.id)
+            # (has_date, date, name) — products with a known oldest patch
+            # date sort by that (true release order); the rest fall back to
+            # natural-sorted name, after everything dated.
+            return (
+                0 if oldest is not None else 1,
+                oldest or dt.date.max,
+                _natural_sort_key(product.display_name),
+            )
+
+        for items in grouped.values():
+            items.sort(key=_version_sort_key)
         return grouped, last_run
 
 

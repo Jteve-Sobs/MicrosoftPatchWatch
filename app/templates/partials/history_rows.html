@@ -14,7 +14,7 @@
     <tr>
       <td>{{ format_date(p.release_date) }}</td>
       <td>
-        {% if p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number or "–" }}</a>
+        {% if p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number or t('history.release_notes') }}</a>
         {% else %}{{ p.kb_number or "–" }}{% endif %}
       </td>
       <td>{{ p.build or "–" }}</td>

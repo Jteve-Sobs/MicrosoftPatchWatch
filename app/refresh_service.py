@@ -141,12 +141,23 @@ async def _product_key_to_id(session: AsyncSession) -> dict[str, int]:
 
 async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo) -> bool:
     """Returns True if this was a genuinely new patch (not seen before)."""
+    # kb_number and build are normalized to "" (never NULL) before they touch
+    # the DB. Reason: the uniqueness constraint is (product_id, kb_number,
+    # build), and Postgres treats every NULL as distinct from every other
+    # NULL — so for any source that leaves one of these unset (all of
+    # .NET/.NET Core has no kb_number; MSRC's .NET Framework updates have no
+    # build), ON CONFLICT DO NOTHING never matched and every refresh silently
+    # inserted a fresh duplicate. "" collides with "" like any normal value,
+    # which is what we want here. Both fields need this, not just one — this
+    # is the second time this exact class of bug showed up, once per column.
+    kb_number = info.kb_number or ""
+    build = info.build or ""
     insert_stmt = (
         pg_insert(Patch)
         .values(
             product_id=product_id,
-            kb_number=info.kb_number,
-            build=info.build,
+            kb_number=kb_number,
+            build=build,
             title=info.title,
             update_type=info.update_type,
             release_date=info.release_date,
@@ -164,8 +175,8 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
     # Already known: just refresh mutable fields / last_seen_at so the UI can
     # show "last confirmed" and severity enrichment from a later source can
     # still land on an existing row.
-    kb_filter = Patch.kb_number.is_(None) if info.kb_number is None else Patch.kb_number == info.kb_number
-    build_filter = Patch.build.is_(None) if info.build is None else Patch.build == info.build
+    kb_filter = Patch.kb_number == kb_number
+    build_filter = Patch.build == build
     await session.execute(
         update(Patch)
         .where(Patch.product_id == product_id, kb_filter, build_filter)

@@ -55,6 +55,13 @@ class Patch(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
 
+    # kb_number and build are both written as "" rather than NULL when a
+    # source doesn't have that field (see refresh_service._upsert_patch), so
+    # the uniqueness constraint below actually catches duplicates — Postgres
+    # treats every NULL as distinct from every other NULL, which silently
+    # defeated ON CONFLICT DO NOTHING for any patch missing either one (all
+    # of .NET/.NET Core has no kb_number; MSRC's .NET Framework updates have
+    # no build).
     kb_number: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     build: Mapped[str | None] = mapped_column(String(60), nullable=True)
     title: Mapped[str | None] = mapped_column(String(300), nullable=True)
