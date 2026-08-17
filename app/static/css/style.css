@@ -117,16 +117,36 @@ body {
   border: 1px solid var(--border);
 }
 
+.filter-wrap { position: relative; flex: 1; min-width: 220px; }
+
 .filter {
-  flex: 1;
-  min-width: 220px;
-  padding: 9px 12px;
+  width: 100%;
+  padding: 9px 30px 9px 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   font-size: 0.9rem;
 }
+/* Custom clear button below replaces these — avoids a double-X. */
+.filter::-webkit-search-cancel-button { display: none; }
+
+.filter-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.filter-clear:hover { background: var(--surface-alt); color: var(--text); }
 
 .hidden-panel-wrap { position: relative; }
 
@@ -214,6 +234,13 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-alt); }
 
 a { color: var(--accent); text-decoration: none; }
+
+mark {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: 3px;
+  padding: 0 2px;
+}
 a:hover { text-decoration: underline; }
 
 .badge {

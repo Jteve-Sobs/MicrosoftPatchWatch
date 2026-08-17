@@ -20,6 +20,7 @@ from app.i18n import (
 from app.models import FetchRun, Patch, Product
 from app.product_sort import fetch_oldest_patch_dates, version_sort_key
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
+from app.static_version import static_version
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -27,6 +28,7 @@ templates = Jinja2Templates(directory="app/templates")
 # a plain str — otherwise the environment's autoescaping HTML-entity-encodes
 # the quotes (&#34;), which is invalid inside a <script> block.
 templates.env.filters["tojson"] = lambda value: Markup(json.dumps(value))
+templates.env.globals["static_version"] = static_version
 
 FAMILY_ORDER = ["windows_client", "windows_server", "dotnet_framework", "dotnet"]
 
@@ -84,10 +86,40 @@ async def _load_dashboard_data():
             await session.execute(select(FetchRun).order_by(FetchRun.started_at.desc()).limit(1))
         ).scalar_one_or_none()
 
+        # The client-side filter box used to only match a product's name and
+        # its *latest* KB — searching for an older KB/build/title buried in a
+        # product's history (or its severity/update type) found nothing. This
+        # builds one search blob per product covering every patch it has, so
+        # the row-level filter (see app.js patchwatchRefreshVisibility) can
+        # match on any of it.
+        search_rows = await session.execute(
+            select(
+                Patch.product_id,
+                Patch.kb_number,
+                Patch.build,
+                Patch.title,
+                Patch.update_type,
+                Patch.severity,
+                Patch.release_date,
+            )
+        )
+        search_blob_by_product: dict[int, str] = {}
+        for product_id, kb_number, build, title, update_type, severity, release_date in search_rows:
+            parts = (kb_number, build, title, update_type, severity, release_date.isoformat() if release_date else None)
+            text = " ".join(p for p in parts if p)
+            if not text:
+                continue
+            existing = search_blob_by_product.get(product_id, "")
+            search_blob_by_product[product_id] = f"{existing} {text}" if existing else text
+
         grouped: dict[str, list[dict]] = {family: [] for family in FAMILY_ORDER}
         for product in products:
             grouped.setdefault(product.family, []).append(
-                {"product": product, "latest": latest_by_product.get(product.id)}
+                {
+                    "product": product,
+                    "latest": latest_by_product.get(product.id),
+                    "search_blob": search_blob_by_product.get(product.id, ""),
+                }
             )
 
         for items in grouped.values():

@@ -34,6 +34,76 @@ function patchwatchFilter() {
   patchwatchRefreshVisibility();
 }
 
+function patchwatchClearFilter() {
+  const filterInput = document.querySelector(".filter");
+  if (!filterInput) return;
+  filterInput.value = "";
+  filterInput.focus();
+  patchwatchRefreshVisibility();
+}
+
+// --- Search-term highlighting --------------------------------------------
+// The filter box matches against a product's *entire* patch history (see
+// search_blob in web.py), but the row itself only ever displays the latest
+// patch's fields — so a match on some older KB/build wouldn't be visible
+// anywhere in the row at all. Highlighting what IS visible at least confirms
+// the match wasn't imaginary, even when the actual hit is buried in history.
+function patchwatchEscapeHtml(str) {
+  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function patchwatchHighlightText(text, query) {
+  if (!query) return patchwatchEscapeHtml(text);
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(escapedQuery, "ig");
+  let result = "";
+  let lastIndex = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    result += patchwatchEscapeHtml(text.slice(lastIndex, match.index));
+    result += "<mark>" + patchwatchEscapeHtml(match[0]) + "</mark>";
+    lastIndex = match.index + match[0].length;
+  }
+  result += patchwatchEscapeHtml(text.slice(lastIndex));
+  return result;
+}
+
+// Only ever reads/writes an element's plain textContent — safe to call on
+// every keystroke without accumulating nested <mark>s, and never touches an
+// enclosing <a>'s href, just its link text.
+function patchwatchHighlightRow(row, query) {
+  const targets = [
+    row.querySelector(".version-name"),
+    row.querySelector(".cell-kb a") || row.querySelector(".cell-kb"),
+    row.querySelector(".cell-build a") || row.querySelector(".cell-build"),
+  ];
+  targets.forEach((el) => {
+    if (!el) return;
+    el.innerHTML = patchwatchHighlightText(el.textContent, query);
+  });
+}
+
+// The outer filter matches a product's *entire* history, but an already-open
+// Verlauf panel used to always show every one of its rows regardless — so
+// e.g. searching a build number that only appears on one row out of 27 left
+// all 27 sitting there unfiltered. This hides/highlights the panel's own
+// rows the same way the product-row list does. Column index 3 (badge type)
+// is skipped: it's a <span>, not plain text, and it isn't part of
+// search_blob anyway (it's the localized display label, not the raw type).
+function patchwatchFilterHistoryRows(historyBody, query) {
+  if (!historyBody) return;
+  historyBody.querySelectorAll("tbody tr").forEach((row) => {
+    const matches = !query || row.textContent.toLowerCase().includes(query);
+    row.style.display = matches ? "" : "none";
+    [0, 1, 2, 4].forEach((i) => {
+      const cell = row.children[i];
+      if (!cell) return;
+      const target = cell.querySelector("a") || cell;
+      target.innerHTML = patchwatchHighlightText(target.textContent, query);
+    });
+  });
+}
+
 // Single source of truth for "is this product row visible right now" —
 // combines the free-text filter with the user's hidden-products list, so
 // hiding a product always wins even if it matches the current filter text.
@@ -42,16 +112,23 @@ function patchwatchRefreshVisibility() {
   const filterInput = document.querySelector(".filter");
   const q = (filterInput ? filterInput.value : "").trim().toLowerCase();
 
+  const clearBtn = document.querySelector(".filter-clear");
+  if (clearBtn) clearBtn.hidden = !q;
+
   document.querySelectorAll(".product-row").forEach((row) => {
     const key = row.dataset.key;
     const hiddenByUser = hidden.has(key);
     const matchesFilter = !q || (row.dataset.search || "").includes(q);
     const visible = !hiddenByUser && matchesFilter;
     row.style.display = visible ? "" : "none";
+    patchwatchHighlightRow(row, q);
 
     const historyRow = row.nextElementSibling;
-    if (historyRow && historyRow.classList.contains("history-row") && !visible) {
-      historyRow.hidden = true; // collapse so it can't linger open behind a hidden row
+    if (historyRow && historyRow.classList.contains("history-row")) {
+      if (!visible) {
+        historyRow.hidden = true; // collapse so it can't linger open behind a hidden row
+      }
+      patchwatchFilterHistoryRows(historyRow.querySelector(".history-body"), q);
     }
   });
 
@@ -274,6 +351,14 @@ document.body.addEventListener("htmx:afterSwap", (evt) => {
     patchwatchRefreshVisibility();
     evt.target.querySelectorAll(".patch-table").forEach(patchwatchApplyStoredSort);
     patchwatchReopenHistory();
+  }
+  // A Verlauf panel (re)loading its content starts unfiltered — apply
+  // whatever's currently in the filter box immediately, rather than waiting
+  // for the next keystroke to notice it.
+  if (evt.target && evt.target.classList && evt.target.classList.contains("history-body")) {
+    const filterInput = document.querySelector(".filter");
+    const q = (filterInput ? filterInput.value : "").trim().toLowerCase();
+    patchwatchFilterHistoryRows(evt.target, q);
   }
 });
 document.addEventListener("DOMContentLoaded", () => {

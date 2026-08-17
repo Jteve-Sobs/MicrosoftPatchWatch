@@ -31,9 +31,11 @@ from app.i18n import (
 from app.models import Patch, Product
 from app.product_sort import sort_products_chronologically
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
+from app.static_version import static_version
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["static_version"] = static_version
 
 _basic_auth = HTTPBasic()
 

@@ -35,21 +35,26 @@
         {% set history_id = "hist-" ~ (product.key|replace(".", "-")) %}
         {% set eol = product.support_end_date %}
         {% set eol_state = eol_status(eol) %}
-        <tr class="product-row" data-key="{{ product.key }}" data-name="{{ product.display_name }}" data-search="{{ (product.display_name ~ ' ' ~ (latest.kb_number or ''))|lower }}">
+        {# Covers every patch this product has (KB/build/title/type/severity/
+           date across its whole history, not just the latest row) plus the
+           family name and LTSC/Server badge, so the filter box can match on
+           any of it — see search_blob in web.py._load_dashboard_data. #}
+        <tr class="product-row" data-key="{{ product.key }}" data-name="{{ product.display_name }}"
+            data-search="{{ (product.display_name ~ ' ' ~ t('family.' ~ family) ~ ' ' ~ (t('badge.server') if family == 'windows_server' else t('badge.ltsc') if product.is_ltsc else '') ~ ' ' ~ item.search_blob)|lower }}">
           {# Sort value is the row's rank in the already correct chronological
              order (see _version_sort_key in web.py), not the display name —
              version *codes* mix incompatible schemes (e.g. "1607" vs "21H2"),
              so parsing the text client-side would reorder them wrong again. #}
-          <td data-sort="{{ loop.index0 }}">{{ product.display_name }}{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.server') if family == 'windows_server' else t('badge.ltsc') }}</span>{% endif %}</td>
+          <td data-sort="{{ loop.index0 }}"><span class="version-name">{{ product.display_name }}</span>{% if product.is_ltsc %} <span class="badge badge-ltsc">{{ t('badge.server') if family == 'windows_server' else t('badge.ltsc') }}</span>{% endif %}</td>
           {% if show_kb %}
-          <td data-sort="{{ latest.kb_number if latest and latest.kb_number else '' }}">
+          <td class="cell-kb" data-sort="{{ latest.kb_number if latest and latest.kb_number else '' }}">
             {% if latest and latest.kb_number %}
               <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.kb_number }}</a>
             {% else %}–{% endif %}
           </td>
           {% endif %}
           {% if show_build %}
-          <td data-sort="{{ latest.build if latest and latest.build else '' }}">
+          <td class="cell-build" data-sort="{{ latest.build if latest and latest.build else '' }}">
             {% if latest and latest.build and not latest.kb_number and latest.kb_url %}
               <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.build }}</a>
             {% else %}{{ latest.build if latest and latest.build else "–" }}{% endif %}

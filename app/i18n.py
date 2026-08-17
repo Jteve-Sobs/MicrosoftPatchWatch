@@ -28,7 +28,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "— refreshed automatically in the background."
         ),
         "btn.refresh": "Refresh now",
-        "filter.placeholder": "Filter… e.g. 24H2, Server 2022, KB512…",
+        "filter.placeholder": "Filter… e.g. 24H2, KB512…, Security, or any past KB/build/title",
+        "filter.clear": "Clear search",
         "nav.hidden": "Hidden",
         "nav.hidden_none": "No products hidden.",
         "nav.show": "Show",
@@ -112,7 +113,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "— wird automatisch im Hintergrund aktualisiert."
         ),
         "btn.refresh": "Jetzt aktualisieren",
-        "filter.placeholder": "Filtern… z. B. 24H2, Server 2022, KB512…",
+        "filter.placeholder": "Filtern… z. B. 24H2, KB512…, Sicherheit, oder jedes frühere KB/Build/Titel",
+        "filter.clear": "Suche leeren",
         "nav.hidden": "Ausgeblendet",
         "nav.hidden_none": "Keine Produkte ausgeblendet.",
         "nav.show": "Einblenden",
