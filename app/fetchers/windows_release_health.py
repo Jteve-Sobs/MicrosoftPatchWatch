@@ -95,6 +95,27 @@ def _parse_date(text: str) -> dt.date | None:
     return None  # e.g. "End of updates" — already ended, no date given
 
 
+_TITLE_TYPE_LABEL = {
+    "Security": "Security Update",
+    "Preview": "Preview Update",
+    "Out-of-Band": "Out-of-Band Update",
+}
+
+
+def _release_title(display_name: str, update_type: str, release_date: dt.date | None) -> str:
+    """Human-readable title, e.g. 'Windows 10, version 1607 – August 2026
+    Security Update'. Not just cosmetic: the source table's own "type" cell
+    is Microsoft's internal release-train shorthand ("2026-08 B", "2026-04
+    OOB" — "B" being their term for the mid-month/Patch-Tuesday release),
+    which reads as gibberish out of context. That raw text still drives
+    _classify_update_type() below; this only changes what ends up in the
+    title users actually see."""
+    label = _TITLE_TYPE_LABEL.get(update_type, "Update")
+    if release_date:
+        return f"{display_name} – {release_date.strftime('%B %Y')} {label}"
+    return f"{display_name} – {label}"
+
+
 def _classify_update_type(raw: str) -> str:
     raw = raw.strip()
     upper = raw.upper()
@@ -276,6 +297,10 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
 
         body = table.find("tbody")
         rows = body.find_all("tr") if body else table.find_all("tr")[1:]
+        # See the matching guard in _parse_history_table: a header <tr> can
+        # end up inside <tbody> on some pages, so drop any row that's all
+        # <th> (real data rows always have a <td>).
+        rows = [row for row in rows if row.find_all("td")]
 
         for row in rows:
             cells = row.find_all(["td", "th"])
@@ -325,6 +350,12 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
 
         body_rows = table.find("tbody")
         rows = body_rows.find_all("tr") if body_rows else table.find_all("tr")[1:]
+        # Some pages put the header <tr> inside <tbody> instead of a separate
+        # <thead>, so it survives the split above and gets read as a data row
+        # (cells = ["Build", "Update type", ...] — "Build" is truthy, so it
+        # even passed the "not kb_number and not build" skip below). A real
+        # data row always has at least one <td>; an all-<th> row never does.
+        rows = [row for row in rows if row.find_all("td")]
 
         # The heading text itself rarely says "LTSC" (e.g. "Version 21H2"), but
         # the per-row "Servicing option" column does (e.g. "LTSC", "LTSB").
@@ -374,13 +405,14 @@ class WindowsReleaseHealthFetcher(BaseFetcher):
             if not kb_number and not build:
                 continue
 
+            update_type = _classify_update_type(update_type_raw)
             result.patches.append(
                 PatchInfo(
                     product_key=product_key,
                     kb_number=kb_number,
                     build=build or None,
-                    title=f"{display_name} – {update_type_raw}".strip(" –"),
-                    update_type=_classify_update_type(update_type_raw),
+                    title=_release_title(display_name, update_type, release_date),
+                    update_type=update_type,
                     release_date=release_date,
                     severity=None,
                     kb_url=kb_url,
