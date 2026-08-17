@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WindowsPatchWatch{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">🪟 WindowsPatchWatch</a>
+      <div id="status-bar" hx-get="/partials/status" hx-trigger="load, every 20s" hx-swap="innerHTML"></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="wrap footer">
+    Quellen: Windows Release Health (Microsoft Learn) · MSRC Security Update API · dotnet/core Releases.
+    Kein offizielles Microsoft-Produkt.
+  </footer>
+
+  <!-- Fires once per page load: kicks off a debounced background refresh. -->
+  <div hx-post="/refresh" hx-trigger="load" hx-swap="none"></div>
+</body>
+</html>

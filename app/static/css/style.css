@@ -1,0 +1,259 @@
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-alt: #eef1f4;
+  --text: #1a1f27;
+  --text-muted: #5c6773;
+  --border: #dde2e8;
+  --accent: #2f6fed;
+  --accent-contrast: #ffffff;
+  --shadow: 0 1px 3px rgba(20, 24, 30, 0.08);
+
+  --sev-security: #d64545;
+  --sev-preview: #2f6fed;
+  --sev-oob: #e08a1f;
+  --sev-update: #4c9a5a;
+  --sev-ltsc: #8452c9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --surface: #1c2027;
+    --surface-alt: #23272f;
+    --text: #e7eaee;
+    --text-muted: #97a1ad;
+    --border: #2d3239;
+    --accent: #5c8dff;
+    --accent-contrast: #0c111a;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.site-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.brand {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.status { font-size: 0.85rem; color: var(--text-muted); }
+.status-error { color: var(--sev-security); }
+.status-partial { color: var(--sev-oob); }
+
+.intro { padding: 28px 0 12px; }
+.intro h1 { margin: 0 0 6px; font-size: 1.6rem; }
+.intro p { color: var(--text-muted); margin: 0 0 16px; }
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.filter {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.hidden-panel-wrap { position: relative; }
+
+.hidden-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  z-index: 20;
+}
+
+.hidden-list { list-style: none; margin: 0; padding: 0; }
+.hidden-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.hidden-list li:last-child { border-bottom: none; }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0;
+  white-space: nowrap;
+}
+.link-btn:hover { text-decoration: underline; }
+
+.family-section { margin: 28px 0; }
+.family-section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+thead th {
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface-alt); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+.badge-security { background: var(--sev-security); }
+.badge-preview { background: var(--sev-preview); }
+.badge-out-of-band { background: var(--sev-oob); }
+.badge-update { background: var(--sev-update); }
+.badge-ltsc { background: var(--sev-ltsc); }
+
+.history-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.history-btn:hover { background: var(--surface-alt); }
+.history-btn .chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.history-btn.is-open .chevron { transform: rotate(90deg); }
+
+.hide-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 5px 8px;
+  margin-left: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+.hide-btn:hover { color: var(--sev-security); border-color: var(--sev-security); }
+
+/* The history row sits directly under its product row and spans the full
+   table width (colspan), so the expanded content is unambiguously "attached"
+   to the row above it instead of being squeezed into one narrow cell. */
+tr.history-row td {
+  padding: 0 14px 16px 14px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+}
+tr.history-row:not([hidden]) td { padding-top: 4px; }
+
+.history-body { padding: 6px 0 0; }
+.history-table { width: 100%; font-size: 0.85rem; }
+.history-table thead th { background: transparent; padding: 6px 10px; }
+.history-table td { padding: 6px 10px; }
+
+.muted { color: var(--text-muted); }
+
+.footer {
+  padding: 30px 20px 40px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}

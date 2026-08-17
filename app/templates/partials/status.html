@@ -1,0 +1,11 @@
+{% if refresh_running %}
+  <span class="status status-running">⏳ Aktualisiere…</span>
+{% elif last_run %}
+  <span class="status status-{{ last_run.status }}">
+    {%- if last_run.status == "success" %}✅{% elif last_run.status == "partial" %}⚠️{% else %}❌{% endif -%}
+    Letzte Prüfung: {{ last_run.finished_at.strftime("%Y-%m-%d %H:%M") if last_run.finished_at else "läuft" }} UTC
+    {%- if last_run.new_patches %} · {{ last_run.new_patches }} neu{% endif %}
+  </span>
+{% else %}
+  <span class="status">Noch keine Prüfung durchgeführt.</span>
+{% endif %}

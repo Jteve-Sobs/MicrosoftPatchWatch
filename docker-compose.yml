@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-patchwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patchwatch}
+      POSTGRES_DB: ${POSTGRES_DB:-patchwatch}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patchwatch} -d ${POSTGRES_DB:-patchwatch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-patchwatch}:${POSTGRES_PASSWORD:-patchwatch}@db:5432/${POSTGRES_DB:-patchwatch}
+      FETCH_INTERVAL_HOURS: ${FETCH_INTERVAL_HOURS:-6}
+      FETCH_ON_STARTUP: ${FETCH_ON_STARTUP:-true}
+      MIN_REFRESH_INTERVAL_MINUTES: ${MIN_REFRESH_INTERVAL_MINUTES:-15}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+
+  # Optional: lightweight DB browser for the patch history, http://localhost:8081
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8081:8080"
+
+volumes:
+  db_data:

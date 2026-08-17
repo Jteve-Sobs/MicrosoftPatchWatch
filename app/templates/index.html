@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}WindowsPatchWatch – Windows & .NET Patch-Übersicht{% endblock %}
+{% block content %}
+<section class="intro">
+  <h1>Aktueller Patch-Stand</h1>
+  <p>Windows 10 / 11 (inkl. LTSB/LTSC), Windows Server sowie .NET Framework und .NET — wird automatisch im Hintergrund aktualisiert.</p>
+  <div class="toolbar">
+    <button class="btn" hx-post="/refresh" hx-swap="none">Jetzt aktualisieren</button>
+    <input class="filter" type="search" placeholder="Filtern… z. B. 24H2, Server 2022, KB512…" oninput="patchwatchFilter()">
+    <div class="hidden-panel-wrap">
+      <button type="button" class="btn btn-secondary" onclick="patchwatchToggleHiddenPanel()">
+        Ausgeblendet (<span id="hidden-count">0</span>)
+      </button>
+      <div id="hidden-panel" class="hidden-panel" hidden></div>
+    </div>
+  </div>
+</section>
+
+<div id="tables" hx-get="/partials/tables" hx-trigger="patchwatch-refreshed from:body" hx-swap="innerHTML">
+  {% include "partials/all_tables.html" %}
+</div>
+{% endblock %}
