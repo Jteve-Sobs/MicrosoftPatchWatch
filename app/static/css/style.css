@@ -283,6 +283,13 @@ tr.history-row:not([hidden]) td { padding-top: 4px; }
 
 .muted { color: var(--text-muted); }
 
+.refresh-feedback {
+  font-size: 0.85rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.refresh-feedback:not(:empty) { opacity: 1; }
+
 .footer {
   padding: 30px 20px 40px;
   color: var(--text-muted);

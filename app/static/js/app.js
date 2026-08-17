@@ -280,3 +280,39 @@ document.addEventListener("DOMContentLoaded", () => {
   patchwatchRefreshVisibility();
   document.querySelectorAll(".patch-table").forEach(patchwatchApplyStoredSort);
 });
+
+// --- "Jetzt aktualisieren" feedback --------------------------------------
+// /refresh is debounced server-side (MIN_REFRESH_INTERVAL_MINUTES) and the
+// button uses hx-swap="none" (there's nothing to swap into), so a debounced
+// click previously produced literally zero visible feedback — indistinguish-
+// able from the button being broken. This surfaces what actually happened.
+let patchwatchRefreshFeedbackTimer;
+document.body.addEventListener("htmx:afterRequest", (evt) => {
+  if (evt.detail.elt?.id !== "refresh-btn") return;
+  const feedback = document.getElementById("refresh-feedback");
+  if (!feedback) return;
+
+  let data = {};
+  try {
+    data = JSON.parse(evt.detail.xhr.responseText);
+  } catch {
+    // Non-JSON/error response: nothing useful to show, fall through to clear.
+  }
+
+  const i18n = window.PATCHWATCH_I18N || {};
+  if (data.started) {
+    feedback.textContent = "";
+    // Don't make the user wait up to 20s for the next status-bar poll to
+    // notice the check that just started.
+    htmx.ajax("GET", "/partials/status", { target: "#status-bar", swap: "innerHTML" });
+  } else if (data.running) {
+    feedback.textContent = i18n.refreshRunning || "";
+  } else {
+    feedback.textContent = i18n.refreshDebounced || "";
+  }
+
+  clearTimeout(patchwatchRefreshFeedbackTimer);
+  if (feedback.textContent) {
+    patchwatchRefreshFeedbackTimer = setTimeout(() => { feedback.textContent = ""; }, 6000);
+  }
+});

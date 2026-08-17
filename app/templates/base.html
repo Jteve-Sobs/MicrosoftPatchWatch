@@ -12,7 +12,9 @@
     // without a round-trip; the rest of the UI is server-rendered per locale.
     window.PATCHWATCH_I18N = {
       hiddenNone: {{ t('nav.hidden_none')|tojson }},
-      show: {{ t('nav.show')|tojson }}
+      show: {{ t('nav.show')|tojson }},
+      refreshRunning: {{ t('status.refresh_running')|tojson }},
+      refreshDebounced: {{ t('status.refresh_debounced')|tojson }}
     };
   </script>
   <script src="/static/js/app.js" defer></script>

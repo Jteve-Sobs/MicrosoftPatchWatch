@@ -5,7 +5,8 @@
   <h1>{{ t('intro.title') }}</h1>
   <p>{{ t('intro.subtitle') }}</p>
   <div class="toolbar">
-    <button class="btn" hx-post="/refresh" hx-swap="none">{{ t('btn.refresh') }}</button>
+    <button id="refresh-btn" class="btn" hx-post="/refresh" hx-swap="none">{{ t('btn.refresh') }}</button>
+    <span id="refresh-feedback" class="refresh-feedback muted" aria-live="polite"></span>
     <input class="filter" type="search" placeholder="{{ t('filter.placeholder') }}" oninput="patchwatchFilter()">
     <div class="hidden-panel-wrap">
       <button type="button" class="btn btn-secondary" onclick="patchwatchToggleHiddenPanel()">
