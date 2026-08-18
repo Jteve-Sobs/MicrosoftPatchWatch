@@ -119,8 +119,6 @@ gleich gegenprüfen kann.
   für abonnierte Produkte
 - **Diff-Ansicht**: "Was hat sich seit Build X geändert" zwischen zwei
   Ständen
-- **Lifecycle/EOL-Daten** einblenden (Support-Ende je Version, farblich
-  markieren wenn < 90 Tage)
 - **Known-Issues-Rollup** je Version (aus den "Known issues"-Seiten von
   Microsoft Learn)
 - **Export**: eigener RSS/Atom-Feed oder CSV-Export je Produkt, als Ersatz für
@@ -144,6 +142,15 @@ laufenden Betrieb anfängt zu scheitern (Fehler landen im `FetchRun`),
 während diese Tests weiter grün gegen die alte, eingefrorene Struktur
 laufen — die Diskrepanz zeigt genau, was sich geändert hat. Siehe
 `tests/fixtures/README.md` für die Herkunft jedes Fixtures.
+
+Die Web-Route-Tests (Dashboard, `/api/*`, `/export/json`, `/admin`-Auth)
+laufen dagegen gegen eine echte, aber leere und wegwerfbare SQLite-Datei statt
+gegen Fixtures — die Router lesen ihre DB-Session direkt aus
+`app.database.async_session_factory`, es gibt also keinen sauberen Seam für
+Fake-Daten wie bei den Fetchern. `tests/conftest.py` biegt `DATABASE_URL`
+dafür auf SQLite um (muss vor jedem `import app...` passieren) und erzeugt/
+verwirft das Schema neu pro Test; die App-Lifespan (Scheduler, echter Fetch
+beim Start) läuft dabei nie mit.
 
 ```bash
 pip install -r requirements-dev.txt
