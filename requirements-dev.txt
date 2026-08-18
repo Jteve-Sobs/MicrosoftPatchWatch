@@ -3,3 +3,6 @@
 -r requirements.txt
 pytest==8.3.3
 pytest-asyncio==0.24.0
+# Lets the web-route tests run against a throwaway SQLite file instead of
+# needing a live Postgres — see tests/conftest.py.
+aiosqlite==0.20.0
