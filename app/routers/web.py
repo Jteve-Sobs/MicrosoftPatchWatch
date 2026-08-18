@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 from functools import partial
 
@@ -125,6 +126,74 @@ async def _load_dashboard_data():
         for items in grouped.values():
             items.sort(key=lambda item: version_sort_key(item["product"], oldest_dates))
         return grouped, last_run
+
+
+async def _build_export_data(scope: str) -> dict:
+    """scope="month" limits to patches released in the current calendar month
+    (across all products); scope="all" is the full history. Products with no
+    matching patches are omitted entirely — keeps a "month" export from
+    listing every product just to say nothing happened for most of them."""
+    today = dt.date.today()
+
+    async with async_session_factory() as session:
+        products = (
+            await session.execute(select(Product).order_by(Product.family, Product.display_name))
+        ).scalars().all()
+        patches = (
+            await session.execute(
+                select(Patch).order_by(Patch.product_id, Patch.release_date.desc().nullslast())
+            )
+        ).scalars().all()
+
+    patches_by_product: dict[int, list[Patch]] = {}
+    for patch in patches:
+        patches_by_product.setdefault(patch.product_id, []).append(patch)
+
+    products_out = []
+    for product in products:
+        product_patches = patches_by_product.get(product.id, [])
+        if scope == "month":
+            product_patches = [
+                p
+                for p in product_patches
+                if p.release_date and p.release_date.year == today.year and p.release_date.month == today.month
+            ]
+        if not product_patches:
+            continue
+
+        products_out.append(
+            {
+                "key": product.key,
+                "name": product.display_name,
+                "family": product.family,
+                "patches": [
+                    {
+                        "kb": pt.kb_number or None,
+                        "build": pt.build or None,
+                        "title": pt.title or None,
+                        "type": pt.update_type or None,
+                        "date": pt.release_date.isoformat() if pt.release_date else None,
+                        "severity": pt.severity or None,
+                        "source": pt.source or None,
+                        "url": pt.kb_url or None,
+                    }
+                    for pt in product_patches
+                ],
+            }
+        )
+
+    return {
+        "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "scope": scope,
+        "products": products_out,
+    }
+
+
+@router.get("/export/json")
+async def export_json(scope: str = "all"):
+    if scope not in ("all", "month"):
+        scope = "all"
+    return await _build_export_data(scope)
 
 
 @router.get("/", response_class=HTMLResponse)

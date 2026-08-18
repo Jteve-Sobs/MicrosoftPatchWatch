@@ -7,15 +7,31 @@
   <div class="toolbar">
     <button id="refresh-btn" class="btn" hx-post="/refresh" hx-swap="none">{{ t('btn.refresh') }}</button>
     <span id="refresh-feedback" class="refresh-feedback muted" aria-live="polite"></span>
+
     <div class="filter-wrap">
       <input class="filter" type="search" placeholder="{{ t('filter.placeholder') }}" oninput="patchwatchFilter()">
       <button type="button" class="filter-clear" hidden aria-label="{{ t('filter.clear') }}" onclick="patchwatchClearFilter()">×</button>
     </div>
-    <div class="hidden-panel-wrap">
-      <button type="button" class="btn btn-secondary" onclick="patchwatchToggleHiddenPanel()">
-        {{ t('nav.hidden') }} (<span id="hidden-count">0</span>)
-      </button>
-      <div id="hidden-panel" class="hidden-panel" hidden></div>
+
+    <div class="toolbar-secondary">
+      <div class="dropdown-wrap">
+        <button type="button" class="btn btn-secondary" id="export-toggle" aria-haspopup="true" aria-expanded="false" onclick="patchwatchToggleExportMenu()">
+          <span aria-hidden="true">⬇</span> <span id="export-toggle-label">{{ t('btn.export') }}</span>
+        </button>
+        <div id="export-menu" class="dropdown-menu" hidden role="menu">
+          <p class="dropdown-hint">{{ t('export.hint') }}</p>
+          <button type="button" role="menuitem" onclick="patchwatchExportJson('month')">{{ t('btn.export_month') }}</button>
+          <button type="button" role="menuitem" onclick="patchwatchExportJson('all')">{{ t('btn.export_all') }}</button>
+        </div>
+      </div>
+      <span id="export-status" class="visually-hidden" aria-live="polite"></span>
+
+      <div class="dropdown-wrap">
+        <button type="button" class="btn btn-secondary" onclick="patchwatchToggleHiddenPanel()">
+          {{ t('nav.hidden') }} (<span id="hidden-count">0</span>)
+        </button>
+        <div id="hidden-panel" class="dropdown-menu hidden-panel" hidden></div>
+      </div>
     </div>
   </div>
 </section>
