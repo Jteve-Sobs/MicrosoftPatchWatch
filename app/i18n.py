@@ -28,6 +28,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "— refreshed automatically in the background."
         ),
         "btn.refresh": "Refresh now",
+        "btn.export_month": "Export current month (XML)",
+        "btn.export_all": "Export all (XML)",
+        "export.copied": "Copied to clipboard.",
+        "export.failed": "Export failed.",
         "filter.placeholder": "Filter… e.g. 24H2, KB512…, Security, or any past KB/build/title",
         "filter.clear": "Clear search",
         "nav.hidden": "Hidden",
@@ -113,6 +117,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "— wird automatisch im Hintergrund aktualisiert."
         ),
         "btn.refresh": "Jetzt aktualisieren",
+        "btn.export_month": "Aktuellen Monat exportieren (XML)",
+        "btn.export_all": "Alles exportieren (XML)",
+        "export.copied": "In die Zwischenablage kopiert.",
+        "export.failed": "Export fehlgeschlagen.",
         "filter.placeholder": "Filtern… z. B. 24H2, KB512…, Sicherheit, oder jedes frühere KB/Build/Titel",
         "filter.clear": "Suche leeren",
         "nav.hidden": "Ausgeblendet",

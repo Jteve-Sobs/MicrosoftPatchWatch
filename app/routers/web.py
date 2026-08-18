@@ -1,8 +1,10 @@
+import datetime as dt
 import json
 from functools import partial
+from xml.etree.ElementTree import Element, SubElement, indent as xml_indent, tostring
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from sqlalchemy import func, select
@@ -125,6 +127,77 @@ async def _load_dashboard_data():
         for items in grouped.values():
             items.sort(key=lambda item: version_sort_key(item["product"], oldest_dates))
         return grouped, last_run
+
+
+async def _build_export_xml(scope: str) -> str:
+    """scope="month" limits to patches released in the current calendar month
+    (across all products); scope="all" is the full history. Products with no
+    matching patches are omitted entirely rather than emitted as an empty
+    <Product> — keeps a "month" export from listing every product just to say
+    nothing happened for most of them."""
+    today = dt.date.today()
+
+    async with async_session_factory() as session:
+        products = (
+            await session.execute(select(Product).order_by(Product.family, Product.display_name))
+        ).scalars().all()
+        patches = (
+            await session.execute(
+                select(Patch).order_by(Patch.product_id, Patch.release_date.desc().nullslast())
+            )
+        ).scalars().all()
+
+    patches_by_product: dict[int, list[Patch]] = {}
+    for patch in patches:
+        patches_by_product.setdefault(patch.product_id, []).append(patch)
+
+    root = Element(
+        "Patches",
+        {
+            "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+            "scope": scope,
+        },
+    )
+    for product in products:
+        product_patches = patches_by_product.get(product.id, [])
+        if scope == "month":
+            product_patches = [
+                p
+                for p in product_patches
+                if p.release_date and p.release_date.year == today.year and p.release_date.month == today.month
+            ]
+        if not product_patches:
+            continue
+
+        product_el = SubElement(
+            root,
+            "Product",
+            {"key": product.key, "name": product.display_name, "family": product.family},
+        )
+        for patch in product_patches:
+            attrs = {
+                "kb": patch.kb_number or "",
+                "build": patch.build or "",
+                "title": patch.title or "",
+                "type": patch.update_type or "",
+                "date": patch.release_date.isoformat() if patch.release_date else "",
+                "severity": patch.severity or "",
+                "source": patch.source or "",
+            }
+            if patch.kb_url:
+                attrs["url"] = patch.kb_url
+            SubElement(product_el, "Patch", attrs)
+
+    xml_indent(root, space="  ")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(root, encoding="unicode")
+
+
+@router.get("/export/xml", response_class=PlainTextResponse)
+async def export_xml(scope: str = "all"):
+    if scope not in ("all", "month"):
+        scope = "all"
+    xml_text = await _build_export_xml(scope)
+    return PlainTextResponse(xml_text, media_type="application/xml")
 
 
 @router.get("/", response_class=HTMLResponse)

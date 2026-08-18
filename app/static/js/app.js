@@ -401,3 +401,29 @@ document.body.addEventListener("htmx:afterRequest", (evt) => {
     patchwatchRefreshFeedbackTimer = setTimeout(() => { feedback.textContent = ""; }, 6000);
   }
 });
+
+// --- XML export -----------------------------------------------------------
+// Fetches the server-rendered XML (see /export/xml in web.py) and copies it
+// straight to the clipboard rather than triggering a file download — that's
+// what was asked for, and it also sidesteps the fact that artifact-style
+// sandboxes can block a plain download link anyway.
+let patchwatchExportFeedbackTimer;
+
+async function patchwatchExportXml(scope) {
+  const feedback = document.getElementById("export-feedback");
+  const i18n = window.PATCHWATCH_I18N || {};
+  try {
+    const response = await fetch(`/export/xml?scope=${encodeURIComponent(scope)}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    await navigator.clipboard.writeText(text);
+    if (feedback) feedback.textContent = i18n.exportCopied || "";
+  } catch {
+    if (feedback) feedback.textContent = i18n.exportFailed || "";
+  }
+
+  if (feedback) {
+    clearTimeout(patchwatchExportFeedbackTimer);
+    patchwatchExportFeedbackTimer = setTimeout(() => { feedback.textContent = ""; }, 6000);
+  }
+}
