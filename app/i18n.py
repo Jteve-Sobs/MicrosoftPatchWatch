@@ -24,7 +24,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "app.title": "WindowsPatchWatch",
         "intro.title": "Current patch status",
         "intro.subtitle": (
-            "Windows 10 / 11 (incl. LTSB/LTSC), Windows Server, and .NET Framework / .NET "
+            "Windows 10 / 11 (incl. LTSB/LTSC), Windows Server, SQL Server, and .NET Framework / .NET "
             "— refreshed automatically in the background."
         ),
         "btn.refresh": "Refresh now",
@@ -64,6 +64,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.refresh_debounced": "Already checked recently — try again shortly.",
         "family.windows_client": "Windows (Client)",
         "family.windows_server": "Windows Server",
+        "family.sql_server": "SQL Server",
         "family.dotnet_framework": ".NET Framework",
         "family.dotnet": ".NET",
         "footer.sources": "Sources",
@@ -115,7 +116,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "app.title": "WindowsPatchWatch",
         "intro.title": "Aktueller Patch-Stand",
         "intro.subtitle": (
-            "Windows 10 / 11 (inkl. LTSB/LTSC), Windows Server sowie .NET Framework und .NET "
+            "Windows 10 / 11 (inkl. LTSB/LTSC), Windows Server, SQL Server sowie .NET Framework und .NET "
             "— wird automatisch im Hintergrund aktualisiert."
         ),
         "btn.refresh": "Jetzt aktualisieren",
@@ -155,6 +156,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status.refresh_debounced": "Gerade erst geprüft — bitte gleich nochmal versuchen.",
         "family.windows_client": "Windows (Client)",
         "family.windows_server": "Windows Server",
+        "family.sql_server": "SQL Server",
         "family.dotnet_framework": ".NET Framework",
         "family.dotnet": ".NET",
         "footer.sources": "Quellen",

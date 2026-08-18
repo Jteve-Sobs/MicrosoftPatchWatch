@@ -8,7 +8,7 @@ restructures a page or feed, the *live* fetcher starts failing while these
 tests keep passing against the old-but-real shape — that mismatch is the
 signal to come update both the fixture and the parser together.
 
-All pulled on 2026-08-17.
+All pulled on 2026-08-17, except `sql_server/` (2026-08-18).
 
 - `windows_release_health/windows_server.html` — trimmed `role="main"` from
   the real windows-server-release-info page: the full "major versions by
@@ -60,3 +60,20 @@ All pulled on 2026-08-17.
   `security`, `release-notes`) — the untrimmed entries also carry
   runtime/sdk/cve-list download metadata the fetcher never touches, ~40x the
   size for no test value.
+
+- `sql_server/sqlserver_2022.html` — trimmed `role="main"` from the real
+  SQL Server 2022 build-versions page: the "Cumulative Update (CU) builds"
+  table cut to 3 rows (kept: the current "(Latest)" row, one row with an
+  absolute KB link, one with a real relative-path KB link — Microsoft mixes
+  both link styles on this page) and the "General Distribution Release
+  (GDR) builds" table cut to 2 rows. Same 7-column shape (including the
+  Analysis Services build/file-version columns the fetcher must skip past)
+  as the 2019 and 2025 pages.
+
+- `sql_server/sqlserver_2016.html` — trimmed `role="main"` from the real SQL
+  Server 2016 build-versions page, kept separate because this version's
+  page has a different shape entirely: build history is split across
+  several tables, one per Service Pack baseline, each with only 4 columns
+  (no separate Analysis Services columns — just "Product version"). Kept
+  two of those tables (SP3, SP1), 1-2 rows each, enough to exercise both the
+  narrower column layout and multiple tables aggregating into one product.

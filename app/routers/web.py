@@ -31,7 +31,7 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["tojson"] = lambda value: Markup(json.dumps(value))
 templates.env.globals["static_version"] = static_version
 
-FAMILY_ORDER = ["windows_client", "windows_server", "dotnet_framework", "dotnet"]
+FAMILY_ORDER = ["windows_client", "windows_server", "sql_server", "dotnet_framework", "dotnet"]
 
 
 def _i18n_context(locale: str) -> dict:

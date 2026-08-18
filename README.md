@@ -1,8 +1,8 @@
 # WindowsPatchWatch
 
 Website that shows the current patch status for **Windows 10/11 (incl.
-LTSB/LTSC), Windows Server, .NET Framework, and .NET** — including history,
-with automatic background refresh.
+LTSB/LTSC), Windows Server, SQL Server, .NET Framework, and .NET** —
+including history, with automatic background refresh.
 
 ## How it works
 
@@ -23,6 +23,7 @@ Microsoft's RSS feed for security updates has been shut down. Instead:
 | Source | Provides | Method |
 |---|---|---|
 | [Windows Release Health](https://learn.microsoft.com/en-us/windows/release-health/) (Microsoft Learn) | Windows 10/11 (incl. LTSB/LTSC) & Windows Server: KB, build, date | HTML scraping of the "Update history" tables |
+| [SQL Server build versions](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/) (Microsoft Learn) | SQL Server 2016/2017/2019/2022/2025: CU/GDR build, KB, date | HTML scraping of the per-version "build versions" tables |
 | [MSRC Security Update API](https://api.msrc.microsoft.com/cvrf/v2.0/updates) | .NET Framework security updates (KB per version) | Official JSON API (CVRF) |
 | [dotnet/core releases-index.json](https://github.com/dotnet/core) | .NET (Core 5+) releases including history | Official JSON on GitHub |
 
@@ -102,9 +103,13 @@ window, so a correction can be checked against fresh data right away.
   updates, not pure quality rollups. The version → KB mapping is based on
   text-parsing MSRC's product names.
 - **Scraping is fragile**: If Microsoft changes the table structure of the
-  Release Health pages, the fetcher finds nothing for the affected page
-  (logged as an error in `FetchRun`, but doesn't break the whole refresh). A
-  look at the logs / `/api/products` reveals this quickly.
+  Release Health or SQL Server build-versions pages, the fetcher finds
+  nothing for the affected page (logged as an error in `FetchRun`, but
+  doesn't break the whole refresh). A look at the logs / `/api/products`
+  reveals this quickly.
+- **SQL Server has no end-of-life data**: unlike the Windows pages, the build-
+  versions pages carry no support-end-date column, so `support_end_date` is
+  always empty for SQL Server products (same situation as .NET Framework).
 - **Severity/CVE** isn't currently linked to Windows KB entries (only present
   indirectly for .NET Framework, via MSRC).
 

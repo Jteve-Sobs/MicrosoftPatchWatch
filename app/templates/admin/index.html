@@ -14,7 +14,7 @@
   </div>
 </section>
 
-{% for family in ["windows_client", "windows_server", "dotnet_framework", "dotnet"] %}
+{% for family in ["windows_client", "windows_server", "sql_server", "dotnet_framework", "dotnet"] %}
   {% set family_products = products|selectattr("family", "equalto", family)|list %}
   {% if family_products %}
   <section class="family-section">

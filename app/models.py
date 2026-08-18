@@ -12,6 +12,7 @@ from app.database import Base
 class ProductFamily(str, enum.Enum):
     WINDOWS_CLIENT = "windows_client"
     WINDOWS_SERVER = "windows_server"
+    SQL_SERVER = "sql_server"
     DOTNET_FRAMEWORK = "dotnet_framework"
     DOTNET = "dotnet"
 
