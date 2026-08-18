@@ -1,5 +1,5 @@
 """Admin area: manual correction of individual patch rows for the cases a
-scraper gets wrong (README "Ideen für später" -> now implemented), plus a
+scraper gets wrong (README "Ideas for later" -> now implemented), plus a
 debounce-bypassing "refresh now" for checking a correction immediately.
 
 Protected by HTTP Basic Auth (see app.config.Settings.admin_password) — this

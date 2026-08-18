@@ -1,178 +1,173 @@
 # WindowsPatchWatch
 
-Webseite, die den aktuellen Patch-Stand für **Windows 10/11 (inkl. LTSB/LTSC),
-Windows Server, .NET Framework und .NET** anzeigt — inkl. Historie, mit
-automatischer Hintergrund-Aktualisierung.
+Website that shows the current patch status for **Windows 10/11 (incl.
+LTSB/LTSC), Windows Server, .NET Framework, and .NET** — including history,
+with automatic background refresh.
 
-## Wie es funktioniert
+## How it works
 
-- **Beim Seitenaufruf**: Die Seite zeigt sofort den zuletzt bekannten Stand aus
-  der Datenbank (kein Warten auf externe Quellen). Im Hintergrund wird per
-  HTMX ein Refresh angestoßen (debounced, siehe `MIN_REFRESH_INTERVAL_MINUTES`)
-  — sobald neue Daten da sind, aktualisiert sich die Tabelle automatisch ohne
-  Reload.
-- **Von selbst**: Ein APScheduler-Job prüft unabhängig von Besuchern alle
-  `FETCH_INTERVAL_HOURS` Stunden (Standard: 6) auf neue Stände.
-- **Historie**: Jeder gefundene Patch wird als eigene Zeile gespeichert und nie
-  gelöscht — "Verlauf" pro Produkt ist einfach die Liste aller je gesehenen
-  Patches, sortiert nach Datum.
+- **On page load**: The page immediately shows the last known state from the
+  database (no waiting on external sources). In the background, HTMX kicks
+  off a refresh (debounced, see `MIN_REFRESH_INTERVAL_MINUTES`) — once new
+  data is in, the table updates automatically without a reload.
+- **On its own**: An APScheduler job checks all sources for new versions every
+  `FETCH_INTERVAL_HOURS` hours (default: 6), independent of visitors.
+- **History**: Every patch found is stored as its own row and never deleted —
+  "History" per product is simply the list of every patch ever seen, sorted
+  by date.
 
-## Datenquellen
+## Data sources
 
-Microsofts RSS-Feed für Sicherheitsupdates ist abgeschaltet. Stattdessen:
+Microsoft's RSS feed for security updates has been shut down. Instead:
 
-| Quelle | Liefert | Methode |
+| Source | Provides | Method |
 |---|---|---|
-| [Windows Release Health](https://learn.microsoft.com/en-us/windows/release-health/) (Microsoft Learn) | Windows 10/11 (inkl. LTSB/LTSC) & Windows Server: KB, Build, Datum | HTML-Scraping der "Update history"-Tabellen |
-| [MSRC Security Update API](https://api.msrc.microsoft.com/cvrf/v2.0/updates) | .NET Framework Sicherheitsupdates (KB je Version) | Offizielles JSON-API (CVRF) |
-| [dotnet/core releases-index.json](https://github.com/dotnet/core) | .NET (Core 5+) Releases inkl. Historie | Offizielles JSON auf GitHub |
+| [Windows Release Health](https://learn.microsoft.com/en-us/windows/release-health/) (Microsoft Learn) | Windows 10/11 (incl. LTSB/LTSC) & Windows Server: KB, build, date | HTML scraping of the "Update history" tables |
+| [MSRC Security Update API](https://api.msrc.microsoft.com/cvrf/v2.0/updates) | .NET Framework security updates (KB per version) | Official JSON API (CVRF) |
+| [dotnet/core releases-index.json](https://github.com/dotnet/core) | .NET (Core 5+) releases including history | Official JSON on GitHub |
 
-Siehe `app/fetchers/` — jede Quelle ist ein eigener Fetcher mit eigenem
-Docstring, der Annahmen und Grenzen der jeweiligen Quelle erklärt.
+See `app/fetchers/` — each source is its own fetcher with its own docstring
+explaining that source's assumptions and limitations.
 
-## Starten
+## Getting started
 
 ```bash
-cp .env.example .env   # Passwort anpassen
+cp .env.example .env   # adjust the password
 docker compose up -d --build
 ```
 
 - App: http://localhost:8000
-- Adminer (DB-Browser, optional): http://localhost:8081 — Server `db`, Login
-  aus `.env`
+- Adminer (DB browser, optional): http://localhost:8081 — server `db`, login
+  from `.env`
 
-Der erste Durchlauf startet automatisch beim Container-Start
-(`FETCH_ON_STARTUP=true`) und befüllt die Datenbank; das dauert je nach
-Quellen ein bis zwei Minuten.
+The first run starts automatically when the container starts
+(`FETCH_ON_STARTUP=true`) and populates the database; depending on the
+sources, that takes one to two minutes.
 
 ## Backups
 
-Der `db-backup`-Service (`prodrigestivill/postgres-backup-local`) läuft
-automatisch mit und legt gzip'te `pg_dump`-Dateien unter `./backups/` ab —
-Standard ist ein täglicher Dump, mit Rotation (Default: 30 Tage, 12 Wochen,
-12 Monate, konfigurierbar über `BACKUP_KEEP_*` / `BACKUP_SCHEDULE` in `.env`).
-Es gibt Unterordner `daily/`, `weekly/`, `monthly/` sowie `last/` mit dem
-jeweils neuesten Dump. Die Dateien sind reine `.sql.gz`, also unabhängig vom
-Backup-Image mit jedem Postgres restorebar.
+The `db-backup` service (`prodrigestivill/postgres-backup-local`) runs
+alongside automatically and drops gzip'd `pg_dump` files under `./backups/` —
+default is a daily dump, with rotation (default: 30 days, 12 weeks, 12
+months, configurable via `BACKUP_KEEP_*` / `BACKUP_SCHEDULE` in `.env`).
+There are `daily/`, `weekly/`, `monthly/` subfolders as well as `last/` with
+the most recent dump. The files are plain `.sql.gz`, so they're restorable
+with any Postgres, independent of the backup image.
 
-**Restore** (überschreibt die laufende DB — Container vorher stoppen oder auf
-eine leere DB zielen):
+**Restore** (overwrites the running DB — stop the container first, or target
+an empty DB):
 
 ```bash
 gunzip -c backups/daily/patchwatch-<TIMESTAMP>.sql.gz | \
   docker compose exec -T db psql -U ${POSTGRES_USER:-patchwatch} -d ${POSTGRES_DB:-patchwatch}
 ```
 
-`./backups/` liegt nur lokal auf dieser Maschine (nicht in Git, siehe
-`.gitignore`) — für eine Offsite-Kopie den Ordner selbst z.B. per `rclone`
-oder `restic` an ein weiteres Ziel syncen.
+`./backups/` only lives on this machine (not in Git, see `.gitignore`) — for
+an offsite copy, sync the folder itself to another destination yourself,
+e.g. via `rclone` or `restic`.
 
-## JSON-API
+## JSON API
 
-- `GET /api/products` — Liste aller erkannten Produkte/Versionen
-- `GET /api/products/{key}/patches` — volle Historie eines Produkts
-- `POST /refresh` — manuellen Refresh anstoßen (debounced)
-- `GET /export/json?scope=all|month` — alle Patches (bzw. nur die des laufenden
-  Kalendermonats) als JSON, gruppiert nach Produkt. Auf der Startseite über die
-  Buttons "Alles exportieren" / "Aktuellen Monat exportieren" erreichbar, die
-  das Ergebnis direkt in die Zwischenablage kopieren statt es herunterzuladen.
+- `GET /api/products` — list of every detected product/version
+- `GET /api/products/{key}/patches` — full history of one product
+- `POST /refresh` — trigger a manual refresh (debounced)
+- `GET /export/json?scope=all|month` — every patch (or just the current
+  calendar month's) as JSON, grouped by product. Reachable from the
+  dashboard via the "Export all" / "Export current month" buttons, which
+  copy the result straight to the clipboard instead of downloading it.
 
-## Admin-Bereich
+## Admin area
 
-`/admin` (Link im Footer) — für die Fälle, in denen ein Scraper mal
-danebenliegt: einzelne Patch-Einträge von Hand anlegen, korrigieren oder
-löschen. Geschützt per HTTP-Basic-Auth (Nutzername `admin`, Passwort aus
-`ADMIN_PASSWORD` in `.env` — unbedingt vor jedem öffentlichen Deploy ändern,
-Default ist `change-me`).
+`/admin` (linked in the footer) — for the cases where a scraper gets
+something wrong: manually add, correct, or delete individual patch entries.
+Protected by HTTP Basic Auth (username `admin`, password from
+`ADMIN_PASSWORD` in `.env` — make sure to change it before any public
+deploy, default is `change-me`).
 
-Ein Eintrag, der hier bearbeitet oder neu angelegt wird, bekommt
-`manually_edited = true` und wird von künftigen automatischen Refreshes nicht
-mehr überschrieben (nur `last_seen_at` wird weiter aktualisiert) — sonst würde
-der nächste Scraper-Lauf die Korrektur einfach wieder zurücksetzen.
+An entry edited or created here gets `manually_edited = true` and is no
+longer overwritten by future automatic refreshes (only `last_seen_at` keeps
+updating) — otherwise the next scraper run would simply revert the
+correction.
 
-`POST /admin/refresh` stößt — anders als der normale "Jetzt
-aktualisieren"-Button — sofort einen Refresh an, auch innerhalb des
-`MIN_REFRESH_INTERVAL_MINUTES`-Debounce-Fensters, damit man eine Korrektur
-gleich gegenprüfen kann.
+`POST /admin/refresh` — unlike the normal "Refresh now" button — triggers a
+refresh immediately, even within the `MIN_REFRESH_INTERVAL_MINUTES` debounce
+window, so a correction can be checked against fresh data right away.
 
-## Bekannte Grenzen (bewusste Scope-Entscheidungen für v1)
+## Known limitations (deliberate scope decisions for v1)
 
-- **Kein Alembic**: Das DB-Schema wird beim Start per `create_all` angelegt.
-  Reicht für v1; sobald sich das Schema auf einer laufenden Instanz ändern
-  soll, lohnt sich ein Umstieg auf echte Migrationen.
-- **.NET Framework-Daten sind best-effort**: MSRC deckt nur *Security*-Updates
-  ab, keine reinen Qualitäts-Rollups. Die Zuordnung Version → KB basiert auf
-  Text-Parsing der MSRC-Produktnamen.
-- **Scraping ist fragil**: Wenn Microsoft die Tabellenstruktur der
-  Release-Health-Seiten ändert, findet der Fetcher nichts mehr für die
-  betroffene Seite (wird als Fehler im `FetchRun` protokolliert, bricht aber
-  nicht die ganze Aktualisierung ab). Ein Blick in die Logs / `/api/products`
-  zeigt das schnell.
-- **Severity/CVE** wird aktuell nicht mit den Windows-KB-Einträgen verknüpft
-  (nur bei .NET Framework indirekt über MSRC vorhanden).
+- **No Alembic**: The DB schema is created at startup via `create_all`. Fine
+  for v1; once the schema needs to change on a running instance, switching to
+  real migrations is worth it.
+- **.NET Framework data is best-effort**: MSRC only covers *security*
+  updates, not pure quality rollups. The version → KB mapping is based on
+  text-parsing MSRC's product names.
+- **Scraping is fragile**: If Microsoft changes the table structure of the
+  Release Health pages, the fetcher finds nothing for the affected page
+  (logged as an error in `FetchRun`, but doesn't break the whole refresh). A
+  look at the logs / `/api/products` reveals this quickly.
+- **Severity/CVE** isn't currently linked to Windows KB entries (only present
+  indirectly for .NET Framework, via MSRC).
 
-## Ideen für später
+## Ideas for later
 
-- **CVE/Severity-Anreicherung** der Windows-Einträge über MSRC verknüpfen
-  (Build/KB → CVE-Liste, Schweregrad als zusätzliche Spalte/Badge)
-- **Benachrichtigungen**: Webhook / E-Mail / Discord / ntfy bei neuen Patches
-  für abonnierte Produkte
-- **Diff-Ansicht**: "Was hat sich seit Build X geändert" zwischen zwei
-  Ständen
-- **Known-Issues-Rollup** je Version (aus den "Known issues"-Seiten von
-  Microsoft Learn)
-- **Export**: eigener RSS/Atom-Feed oder CSV-Export je Produkt, als Ersatz für
-  den abgeschalteten Microsoft-Feed
-- **Vergleichsansicht** mehrerer Versionen nebeneinander (z. B. alle
-  Server-Versionen im Vergleich)
-- **Suche/Filter serverseitig** statt nur client-seitig, plus Filter nach
-  Update-Typ (Security/Preview/OOB)
-- **Alembic-Migrationen**, sobald das Schema wächst
-- **Auth** fürs Adminer/`POST /refresh`-Endpoint, falls die Seite mal
-  öffentlich erreichbar wird (`/admin` hat seit kurzem eigenes Basic-Auth,
-  Adminer und der öffentliche Refresh-Button aber noch nicht)
+- **CVE/severity enrichment** for Windows entries, linked via MSRC
+  (build/KB → CVE list, severity as an extra column/badge)
+- **Notifications**: webhook / email / Discord / ntfy on new patches for
+  subscribed products
+- **Diff view**: "what changed since build X" between two points in time
+- **Known-issues rollup** per version (from Microsoft Learn's "Known issues"
+  pages)
+- **Export**: a dedicated RSS/Atom feed or CSV export per product, as a
+  replacement for the discontinued Microsoft feed
+- **Comparison view** of multiple versions side by side (e.g. all Server
+  versions compared)
+- **Server-side search/filter** instead of client-side only, plus filtering
+  by update type (Security/Preview/OOB)
+- **Alembic migrations**, once the schema grows
+- **Auth** for Adminer / the `POST /refresh` endpoint, in case the site ever
+  becomes publicly reachable (`/admin` recently got its own Basic Auth,
+  Adminer and the public refresh button haven't yet)
 
 ## Tests
 
-Parser-Tests laufen gegen eingefrorene, echte (aber gekürzte) HTML/JSON-
-Antworten der Quellen unter `tests/fixtures/` — kein Netzwerkzugriff nötig,
-kein laufender Stack nötig. Zweck: wenn Microsoft/dotnet mal die Seiten-/
-Feed-Struktur ändert, merkt man das daran, dass der *echte* Fetcher im
-laufenden Betrieb anfängt zu scheitern (Fehler landen im `FetchRun`),
-während diese Tests weiter grün gegen die alte, eingefrorene Struktur
-laufen — die Diskrepanz zeigt genau, was sich geändert hat. Siehe
-`tests/fixtures/README.md` für die Herkunft jedes Fixtures.
+Parser tests run against frozen, real (but trimmed) HTML/JSON responses from
+the sources, under `tests/fixtures/` — no network access needed, no running
+stack needed. Purpose: if Microsoft/dotnet ever changes a page's/feed's
+structure, that shows up as the *real* fetcher starting to fail in
+production (errors land in `FetchRun`), while these tests keep passing
+against the old, frozen structure — the discrepancy shows exactly what
+changed. See `tests/fixtures/README.md` for where each fixture came from.
 
-Die Web-Route-Tests (Dashboard, `/api/*`, `/export/json`, `/admin`-Auth)
-laufen dagegen gegen eine echte, aber leere und wegwerfbare SQLite-Datei statt
-gegen Fixtures — die Router lesen ihre DB-Session direkt aus
-`app.database.async_session_factory`, es gibt also keinen sauberen Seam für
-Fake-Daten wie bei den Fetchern. `tests/conftest.py` biegt `DATABASE_URL`
-dafür auf SQLite um (muss vor jedem `import app...` passieren) und erzeugt/
-verwirft das Schema neu pro Test; die App-Lifespan (Scheduler, echter Fetch
-beim Start) läuft dabei nie mit.
+The web-route tests (dashboard, `/api/*`, `/export/json`, `/admin` auth), on
+the other hand, run against a real but empty, throwaway SQLite file instead
+of fixtures — the routers read their DB session directly from
+`app.database.async_session_factory`, so there's no clean seam for fake data
+the way there is for the fetchers. `tests/conftest.py` points `DATABASE_URL`
+at SQLite for this (has to happen before any `import app...`) and
+creates/drops the schema fresh per test; the app's lifespan (scheduler, real
+fetch on startup) never runs in the process.
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-(Die Test-Dependencies sind bewusst nicht im Docker-Image — `requirements.txt`
-bleibt schlank für den Produktivbetrieb.)
+(Test dependencies are deliberately not in the Docker image —
+`requirements.txt` stays lean for production.)
 
-## Projektstruktur
+## Project structure
 
 ```
 app/
-  fetchers/            # eine Datei pro Datenquelle
+  fetchers/            # one file per data source
   routers/             # web.py (HTML/HTMX), api.py (JSON)
-  templates/            # Jinja2 + HTMX-Partials
+  templates/            # Jinja2 + HTMX partials
   static/                # CSS/JS
   models.py               # SQLAlchemy: Product, Patch, FetchRun
-  refresh_service.py       # Orchestrierung + Upsert-Logik
-  scheduler.py               # APScheduler-Job
-  main.py                     # FastAPI-App + Lifespan
+  refresh_service.py       # orchestration + upsert logic
+  scheduler.py               # APScheduler job
+  main.py                     # FastAPI app + lifespan
 tests/
-  fixtures/                    # eingefrorenes, echtes HTML/JSON je Quelle
-  test_*.py                     # ein Testmodul je Fetcher
+  fixtures/                    # frozen, real HTML/JSON per source
+  test_*.py                     # one test module per fetcher
 ```
