@@ -7,8 +7,8 @@
   <div class="toolbar">
     <button id="refresh-btn" class="btn" hx-post="/refresh" hx-swap="none">{{ t('btn.refresh') }}</button>
     <span id="refresh-feedback" class="refresh-feedback muted" aria-live="polite"></span>
-    <button type="button" class="btn btn-secondary" onclick="patchwatchExportXml('month')">{{ t('btn.export_month') }}</button>
-    <button type="button" class="btn btn-secondary" onclick="patchwatchExportXml('all')">{{ t('btn.export_all') }}</button>
+    <button type="button" class="btn btn-secondary" onclick="patchwatchExportJson('month')">{{ t('btn.export_month') }}</button>
+    <button type="button" class="btn btn-secondary" onclick="patchwatchExportJson('all')">{{ t('btn.export_all') }}</button>
     <span id="export-feedback" class="refresh-feedback muted" aria-live="polite"></span>
     <div class="filter-wrap">
       <input class="filter" type="search" placeholder="{{ t('filter.placeholder') }}" oninput="patchwatchFilter()">

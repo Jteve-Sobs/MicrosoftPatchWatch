@@ -72,8 +72,8 @@ oder `restic` an ein weiteres Ziel syncen.
 - `GET /api/products` — Liste aller erkannten Produkte/Versionen
 - `GET /api/products/{key}/patches` — volle Historie eines Produkts
 - `POST /refresh` — manuellen Refresh anstoßen (debounced)
-- `GET /export/xml?scope=all|month` — alle Patches (bzw. nur die des laufenden
-  Kalendermonats) als XML, gruppiert nach Produkt. Auf der Startseite über die
+- `GET /export/json?scope=all|month` — alle Patches (bzw. nur die des laufenden
+  Kalendermonats) als JSON, gruppiert nach Produkt. Auf der Startseite über die
   Buttons "Alles exportieren" / "Aktuellen Monat exportieren" erreichbar, die
   das Ergebnis direkt in die Zwischenablage kopieren statt es herunterzuladen.
 

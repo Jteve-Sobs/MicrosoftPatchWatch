@@ -402,21 +402,22 @@ document.body.addEventListener("htmx:afterRequest", (evt) => {
   }
 });
 
-// --- XML export -----------------------------------------------------------
-// Fetches the server-rendered XML (see /export/xml in web.py) and copies it
+// --- JSON export -----------------------------------------------------------
+// Fetches the server-rendered data (see /export/json in web.py) and copies it
 // straight to the clipboard rather than triggering a file download — that's
 // what was asked for, and it also sidesteps the fact that artifact-style
-// sandboxes can block a plain download link anyway.
+// sandboxes can block a plain download link anyway. Re-stringified with
+// indentation client-side since FastAPI's default JSONResponse is compact.
 let patchwatchExportFeedbackTimer;
 
-async function patchwatchExportXml(scope) {
+async function patchwatchExportJson(scope) {
   const feedback = document.getElementById("export-feedback");
   const i18n = window.PATCHWATCH_I18N || {};
   try {
-    const response = await fetch(`/export/xml?scope=${encodeURIComponent(scope)}`);
+    const response = await fetch(`/export/json?scope=${encodeURIComponent(scope)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    await navigator.clipboard.writeText(text);
+    const data = await response.json();
+    await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
     if (feedback) feedback.textContent = i18n.exportCopied || "";
   } catch {
     if (feedback) feedback.textContent = i18n.exportFailed || "";

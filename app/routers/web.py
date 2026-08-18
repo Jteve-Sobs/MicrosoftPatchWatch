@@ -1,10 +1,9 @@
 import datetime as dt
 import json
 from functools import partial
-from xml.etree.ElementTree import Element, SubElement, indent as xml_indent, tostring
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from sqlalchemy import func, select
@@ -129,12 +128,11 @@ async def _load_dashboard_data():
         return grouped, last_run
 
 
-async def _build_export_xml(scope: str) -> str:
+async def _build_export_data(scope: str) -> dict:
     """scope="month" limits to patches released in the current calendar month
     (across all products); scope="all" is the full history. Products with no
-    matching patches are omitted entirely rather than emitted as an empty
-    <Product> — keeps a "month" export from listing every product just to say
-    nothing happened for most of them."""
+    matching patches are omitted entirely — keeps a "month" export from
+    listing every product just to say nothing happened for most of them."""
     today = dt.date.today()
 
     async with async_session_factory() as session:
@@ -151,13 +149,7 @@ async def _build_export_xml(scope: str) -> str:
     for patch in patches:
         patches_by_product.setdefault(patch.product_id, []).append(patch)
 
-    root = Element(
-        "Patches",
-        {
-            "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-            "scope": scope,
-        },
-    )
+    products_out = []
     for product in products:
         product_patches = patches_by_product.get(product.id, [])
         if scope == "month":
@@ -169,35 +161,39 @@ async def _build_export_xml(scope: str) -> str:
         if not product_patches:
             continue
 
-        product_el = SubElement(
-            root,
-            "Product",
-            {"key": product.key, "name": product.display_name, "family": product.family},
-        )
-        for patch in product_patches:
-            attrs = {
-                "kb": patch.kb_number or "",
-                "build": patch.build or "",
-                "title": patch.title or "",
-                "type": patch.update_type or "",
-                "date": patch.release_date.isoformat() if patch.release_date else "",
-                "severity": patch.severity or "",
-                "source": patch.source or "",
+        products_out.append(
+            {
+                "key": product.key,
+                "name": product.display_name,
+                "family": product.family,
+                "patches": [
+                    {
+                        "kb": pt.kb_number or None,
+                        "build": pt.build or None,
+                        "title": pt.title or None,
+                        "type": pt.update_type or None,
+                        "date": pt.release_date.isoformat() if pt.release_date else None,
+                        "severity": pt.severity or None,
+                        "source": pt.source or None,
+                        "url": pt.kb_url or None,
+                    }
+                    for pt in product_patches
+                ],
             }
-            if patch.kb_url:
-                attrs["url"] = patch.kb_url
-            SubElement(product_el, "Patch", attrs)
+        )
 
-    xml_indent(root, space="  ")
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(root, encoding="unicode")
+    return {
+        "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "scope": scope,
+        "products": products_out,
+    }
 
 
-@router.get("/export/xml", response_class=PlainTextResponse)
-async def export_xml(scope: str = "all"):
+@router.get("/export/json")
+async def export_json(scope: str = "all"):
     if scope not in ("all", "month"):
         scope = "all"
-    xml_text = await _build_export_xml(scope)
-    return PlainTextResponse(xml_text, media_type="application/xml")
+    return await _build_export_data(scope)
 
 
 @router.get("/", response_class=HTMLResponse)
