@@ -2,8 +2,8 @@
 
 Frozen snapshots of real responses from each source, trimmed down for repo
 size but otherwise unmodified — real field names, real KB numbers/CVEs/build
-numbers, real HTML structure quirks. The point (see the "Tests für die
-Parser" backlog item this replaces) is that when Microsoft/the dotnet team
+numbers, real HTML structure quirks. The point (see the "parser tests"
+backlog item this replaces) is that when Microsoft/the dotnet team
 restructures a page or feed, the *live* fetcher starts failing while these
 tests keep passing against the old-but-real shape — that mismatch is the
 signal to come update both the fixture and the parser together.
