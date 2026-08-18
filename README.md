@@ -1,4 +1,4 @@
-# WindowsPatchWatch
+# MicrosoftPatchWatch
 
 Website that shows the current patch status for **Windows 10/11 (incl.
 LTSB/LTSC), Windows Server, SQL Server, .NET Framework, and .NET** —

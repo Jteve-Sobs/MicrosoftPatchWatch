@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = 30.0
     http_user_agent: str = (
-        "WindowsPatchWatch/1.0 (+https://github.com/Jteve-Sobs/WindowsPatchWatch)"
+        "MicrosoftPatchWatch/1.0 (+https://github.com/Jteve-Sobs/MicrosoftPatchWatch)"
     )
 
     log_level: str = "INFO"

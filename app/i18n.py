@@ -21,7 +21,7 @@ DATE_FORMATS = {"en": "%b %d, %Y", "de": "%d.%m.%Y"}
 
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
-        "app.title": "WindowsPatchWatch",
+        "app.title": "MicrosoftPatchWatch",
         "intro.title": "Current patch status",
         "intro.subtitle": (
             "Windows 10 / 11 (incl. LTSB/LTSC), Windows Server, SQL Server, and .NET Framework / .NET "
@@ -113,7 +113,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
     },
     "de": {
-        "app.title": "WindowsPatchWatch",
+        "app.title": "MicrosoftPatchWatch",
         "intro.title": "Aktueller Patch-Stand",
         "intro.subtitle": (
             "Windows 10 / 11 (inkl. LTSB/LTSC), Windows Server, SQL Server sowie .NET Framework und .NET "

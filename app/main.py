@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(title="WindowsPatchWatch", lifespan=lifespan)
+app = FastAPI(title="MicrosoftPatchWatch", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(web.router)
 app.include_router(api.router)
