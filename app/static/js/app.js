@@ -181,16 +181,31 @@ function renderHiddenPanel(hidden) {
 function patchwatchToggleHiddenPanel() {
   const panel = document.getElementById("hidden-panel");
   if (!panel) return;
-  panel.hidden = !panel.hidden;
+  const willOpen = panel.hidden;
+  patchwatchCloseDropdowns();
+  panel.hidden = !willOpen;
 }
 
-// Close the "hidden products" popup on any click outside it (or its toggle
-// button), like a normal dropdown/menu.
-document.addEventListener("click", (evt) => {
+// Closes any open dropdown (hidden-products panel, export menu) — used both
+// by outside-click handling and by each toggle so opening one closes the
+// other rather than stacking two popovers on screen at once.
+function patchwatchCloseDropdowns() {
   const panel = document.getElementById("hidden-panel");
-  if (!panel || panel.hidden) return;
-  if (evt.target.closest("#hidden-panel, .hidden-panel-wrap > .btn")) return;
-  panel.hidden = true;
+  if (panel) panel.hidden = true;
+  const exportMenu = document.getElementById("export-menu");
+  if (exportMenu) exportMenu.hidden = true;
+  const exportToggle = document.getElementById("export-toggle");
+  if (exportToggle) exportToggle.setAttribute("aria-expanded", "false");
+}
+
+// Close any open dropdown on a click outside it (or its own toggle button),
+// like a normal dropdown/menu.
+document.addEventListener("click", (evt) => {
+  if (evt.target.closest(".dropdown-wrap")) return;
+  patchwatchCloseDropdowns();
+});
+document.addEventListener("keydown", (evt) => {
+  if (evt.key === "Escape") patchwatchCloseDropdowns();
 });
 
 // Which products currently have their "Verlauf" panel open. #tables gets
@@ -408,23 +423,54 @@ document.body.addEventListener("htmx:afterRequest", (evt) => {
 // what was asked for, and it also sidesteps the fact that artifact-style
 // sandboxes can block a plain download link anyway. Re-stringified with
 // indentation client-side since FastAPI's default JSONResponse is compact.
-let patchwatchExportFeedbackTimer;
+function patchwatchToggleExportMenu() {
+  const menu = document.getElementById("export-menu");
+  const toggle = document.getElementById("export-toggle");
+  if (!menu || !toggle) return;
+  const willOpen = menu.hidden;
+  patchwatchCloseDropdowns();
+  menu.hidden = !willOpen;
+  toggle.setAttribute("aria-expanded", String(willOpen));
+}
 
 async function patchwatchExportJson(scope) {
-  const feedback = document.getElementById("export-feedback");
+  patchwatchCloseDropdowns();
   const i18n = window.PATCHWATCH_I18N || {};
   try {
     const response = await fetch(`/export/json?scope=${encodeURIComponent(scope)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    if (feedback) feedback.textContent = i18n.exportCopied || "";
+    patchwatchShowExportFeedback(i18n.exportCopied || "", false);
   } catch {
-    if (feedback) feedback.textContent = i18n.exportFailed || "";
+    patchwatchShowExportFeedback(i18n.exportFailed || "", true);
   }
+}
 
-  if (feedback) {
-    clearTimeout(patchwatchExportFeedbackTimer);
-    patchwatchExportFeedbackTimer = setTimeout(() => { feedback.textContent = ""; }, 6000);
-  }
+// Shows the result right on the export button itself (icon + color + label
+// swap for ~2s) instead of in a separate line of muted text next to it — a
+// plain "Copied." caption next to a row of buttons is easy to fire-and-miss;
+// the button changing state under the cursor you just clicked is not. The
+// visually-hidden #export-status mirrors the same message for screen readers,
+// since a plain textContent swap on the button isn't otherwise announced.
+let patchwatchExportFeedbackTimer;
+
+function patchwatchShowExportFeedback(message, isError) {
+  const status = document.getElementById("export-status");
+  if (status) status.textContent = message;
+
+  const toggle = document.getElementById("export-toggle");
+  const label = document.getElementById("export-toggle-label");
+  if (!toggle || !label) return;
+  if (!label.dataset.defaultText) label.dataset.defaultText = label.textContent;
+
+  label.textContent = (isError ? "⚠ " : "✓ ") + message;
+  toggle.classList.toggle("btn-feedback-error", isError);
+  toggle.classList.toggle("btn-feedback-success", !isError);
+
+  clearTimeout(patchwatchExportFeedbackTimer);
+  patchwatchExportFeedbackTimer = setTimeout(() => {
+    label.textContent = label.dataset.defaultText;
+    toggle.classList.remove("btn-feedback-error", "btn-feedback-success");
+  }, 2200);
 }
