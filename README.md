@@ -23,7 +23,7 @@ Microsoft's RSS feed for security updates has been shut down. Instead:
 | Source | Provides | Method |
 |---|---|---|
 | [Windows Release Health](https://learn.microsoft.com/en-us/windows/release-health/) (Microsoft Learn) | Windows 10/11 (incl. LTSB/LTSC) & Windows Server: KB, build, date | HTML scraping of the "Update history" tables |
-| [SQL Server build versions](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/) (Microsoft Learn) | SQL Server 2016/2017/2019/2022/2025: CU/GDR build, KB, date | HTML scraping of the per-version "build versions" tables |
+| [SQL Server build versions](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates) (Microsoft Learn) | SQL Server 2016/2017/2019/2022/2025: CU/GDR build, KB, date | HTML scraping of the per-version "build versions" tables |
 | [MSRC Security Update API](https://api.msrc.microsoft.com/cvrf/v2.0/updates) | .NET Framework security updates (KB per version) | Official JSON API (CVRF) |
 | [dotnet/core releases-index.json](https://github.com/dotnet/core) | .NET (Core 5+) releases including history | Official JSON on GitHub |
 
