@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪟</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
   <link rel="stylesheet" href="{{ static_version('/static/css/style.css') }}">
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
   <script>
@@ -24,7 +24,7 @@
 <body>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/">🪟 {{ t('app.title') }}</a>
+      <a class="brand" href="/">🕐 {{ t('app.title') }}</a>
       <div class="header-right">
         <div id="status-bar" hx-get="/partials/status" hx-trigger="load, every 20s" hx-swap="innerHTML"></div>
         <nav class="lang-switch" aria-label="Language">
