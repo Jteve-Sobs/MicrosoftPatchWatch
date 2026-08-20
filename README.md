@@ -45,6 +45,64 @@ The first run starts automatically when the container starts
 (`FETCH_ON_STARTUP=true`) and populates the database; depending on the
 sources, that takes one to two minutes.
 
+## Bare metal installation (without Docker)
+
+The Docker setup above is recommended (bundles Postgres, backups, Adminer).
+To run the app directly on a machine instead, only two things differ from
+Docker: PostgreSQL needs to be installed separately, and `DATABASE_URL` must
+point at `localhost` instead of the Compose service name `db`.
+
+Prerequisites: Python 3.12, PostgreSQL.
+
+### Linux
+
+```bash
+sudo -u postgres psql -c "CREATE USER patchwatch WITH PASSWORD 'change-me';"
+sudo -u postgres psql -c "CREATE DATABASE patchwatch OWNER patchwatch;"
+
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# edit .env: add
+#   DATABASE_URL=postgresql+asyncpg://patchwatch:change-me@localhost:5432/patchwatch
+# and change ADMIN_PASSWORD
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Windows
+
+Install Python 3.12 (from python.org, "Add python.exe to PATH") and
+PostgreSQL (from postgresql.org — installs pgAdmin and a `postgres` Windows
+service).
+
+```powershell
+psql -U postgres -c "CREATE USER patchwatch WITH PASSWORD 'change-me';"
+psql -U postgres -c "CREATE DATABASE patchwatch OWNER patchwatch;"
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+copy .env.example .env
+# edit .env: add
+#   DATABASE_URL=postgresql+asyncpg://patchwatch:change-me@localhost:5432/patchwatch
+# and change ADMIN_PASSWORD
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Either way: → http://localhost:8000. Tables are created automatically on
+first start (`create_all`, no Alembic needed); with `FETCH_ON_STARTUP=true`
+(default) the first fetch runs immediately.
+
+Running this persistently (surviving reboot/logout) is out of scope here —
+use a systemd service on Linux or NSSM/Task Scheduler on Windows, and set up
+your own `pg_dump` backups (the `db-backup` Compose service doesn't apply
+without Docker).
+
 ## Backups
 
 The `db-backup` service (`prodrigestivill/postgres-backup-local`) runs
