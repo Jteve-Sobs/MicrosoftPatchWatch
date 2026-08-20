@@ -4,6 +4,10 @@ Website that shows the current patch status for **Windows 10/11 (incl.
 LTSB/LTSC), Windows Server, SQL Server, .NET Framework, and .NET** —
 including history, with automatic background refresh.
 
+<p align="center">
+  <img src="docs/screenshots/screenshot.png" width="100%" alt="MicrosoftPatchWatch dashboard — light mode top-right, dark mode bottom-left" />
+</p>
+
 ## How it works
 
 - **On page load**: The page immediately shows the last known state from the
