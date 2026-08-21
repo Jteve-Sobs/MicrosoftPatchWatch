@@ -56,7 +56,7 @@ To run the app directly on a machine instead, only two things differ from
 Docker: PostgreSQL needs to be installed separately, and `DATABASE_URL` must
 point at `localhost` instead of the Compose service name `db`.
 
-Prerequisites: Python 3.12, PostgreSQL.
+Prerequisites: Python 3.14, PostgreSQL.
 
 ### Linux
 
@@ -78,7 +78,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ### Windows
 
-Install Python 3.12 (from python.org, "Add python.exe to PATH") and
+Install Python 3.14 (from python.org, "Add python.exe to PATH") and
 PostgreSQL (from postgresql.org — installs pgAdmin and a `postgres` Windows
 service).
 
