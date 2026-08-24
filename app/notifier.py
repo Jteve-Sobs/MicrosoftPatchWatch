@@ -15,6 +15,7 @@ function here becomes a no-op.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from dataclasses import dataclass
 
@@ -46,13 +47,15 @@ class NewPatchNotice:
     title: str | None
     severity: str | None
     update_type: str | None
+    release_date: dt.date | None
 
 
 def _format_line(notice: NewPatchNotice) -> str:
     identifier = notice.kb_number or notice.build or "—"
     label = notice.title or notice.update_type or "Update"
     severity = f" [{notice.severity}]" if notice.severity else ""
-    return f"• {notice.product_display_name}: {identifier} — {label}{severity}"
+    date = f" ({notice.release_date.isoformat()})" if notice.release_date else ""
+    return f"• {notice.product_display_name}: {identifier} — {label}{severity}{date}"
 
 
 def _worst_severity(notices: list[NewPatchNotice]) -> str | None:

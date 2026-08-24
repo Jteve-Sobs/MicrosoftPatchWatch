@@ -115,6 +115,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                                 title=patch_info.title,
                                 severity=patch_info.severity,
                                 update_type=patch_info.update_type,
+                                release_date=patch_info.release_date,
                             )
                         )
 

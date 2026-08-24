@@ -8,6 +8,8 @@ instead of hitting the network.
 
 from __future__ import annotations
 
+import datetime as dt
+
 import httpx
 import pytest
 
@@ -69,13 +71,18 @@ def _notice(**overrides) -> NewPatchNotice:
         title="Cumulative Update",
         severity=None,
         update_type="Security",
+        release_date=dt.date(2026, 8, 12),
     )
     defaults.update(overrides)
     return NewPatchNotice(**defaults)
 
 
 async def test_noop_without_ntfy_url(mock_ntfy, monkeypatch):
-    monkeypatch.delenv("NTFY_URL", raising=False)
+    # setenv("", ...) rather than delenv: Settings also reads a real .env
+    # file on disk (see app/config.py's model_config), so simply unsetting
+    # the process env var wouldn't shadow a value someone has configured
+    # there for actual local use — an empty string does.
+    monkeypatch.setenv("NTFY_URL", "")
     get_settings.cache_clear()
 
     await notify_new_patches([_notice()])
@@ -113,6 +120,17 @@ async def test_sends_one_push_summarizing_all_notices(mock_ntfy, monkeypatch):
     assert "KB5000001" in body
     assert "KB5000002" in body
     assert "[Critical]" in body
+    assert "(2026-08-12)" in body
+
+
+async def test_omits_date_when_release_date_is_missing(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+
+    await notify_new_patches([_notice(release_date=None)])
+
+    body = mock_ntfy.requests[0].read().decode("utf-8")
+    assert "(" not in body
 
 
 async def test_singular_title_and_default_priority_without_severity(mock_ntfy, monkeypatch):
