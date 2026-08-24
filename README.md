@@ -175,6 +175,16 @@ every refresh, whatever triggered it (scheduler, page load, or `/admin`'s
 which is suppressed since practically every patch looks "new" then. See
 `app/notifier.py`.
 
+A second, separate push fires when a source breaks (e.g. Microsoft changes a
+page's HTML structure and a fetcher starts returning nothing) — `urgent`
+priority if every source failed, `high` if at least one still came through.
+Unlike the new-patch push, this one does fire on a fresh database (a broken
+fetcher is worth knowing about immediately, first run or not), but it only
+re-fires when the error text actually changes from the previous run — a
+source that's still broken exactly the same way it was 6 hours ago doesn't
+re-alert on every scheduled refresh, only the transition into (or a change
+in) a broken state does.
+
 ## Known limitations (deliberate scope decisions for v1)
 
 - **No Alembic**: The DB schema is created at startup via `create_all`. Fine

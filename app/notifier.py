@@ -1,10 +1,16 @@
-"""Push notifications for newly discovered patches, via ntfy
-(https://ntfy.sh or a self-hosted instance — see https://ntfy.sh/docs/).
+"""Push notifications via ntfy (https://ntfy.sh or a self-hosted instance —
+see https://ntfy.sh/docs/), for two distinct events:
 
-One push per refresh run, not per patch — refresh_service.run_all_fetchers
-collects every patch that was genuinely new in that run and calls
-notify_new_patches() once at the end, so a run that finds 12 new KBs sends
-exactly one notification listing all 12, not 12 separate pushes.
+- notify_new_patches(): one push per refresh run summarizing every patch
+  that was genuinely new in that run (see refresh_service.run_all_fetchers) —
+  a run that finds 12 new KBs sends exactly one notification listing all 12,
+  not 12 separate pushes.
+- notify_fetch_errors(): one push when a fetcher breaks (e.g. Microsoft
+  changed a page's HTML structure). This is the actual alarm case — a source
+  silently returning nothing would otherwise only show up in the logs / the
+  status badge, easy to miss for days. See refresh_service for the dedup
+  logic that keeps a still-broken source from re-alerting on every scheduled
+  run.
 
 Configure via NTFY_URL in .env (the full topic URL, e.g.
 "https://ntfy.sh/my-private-topic" or a self-hosted
@@ -103,3 +109,50 @@ async def notify_new_patches(notices: list[NewPatchNotice]) -> None:
             response.raise_for_status()
     except Exception:  # noqa: BLE001 - a broken notify target must not break refreshes
         logger.exception("Failed to send ntfy notification for %s new patch(es)", len(notices))
+
+
+async def notify_fetch_errors(errors: list[str], status: str) -> None:
+    """Sends one ntfy push listing the errors from a refresh run. No-op if
+    NTFY_URL isn't configured or the list is empty.
+
+    Unlike notify_new_patches, there's no "first run" suppression here —
+    a broken fetcher is worth knowing about even (especially) on the very
+    first run. Deduplication against a *still* broken fetcher happens in the
+    caller (refresh_service.run_all_fetchers), by only calling this when the
+    error text differs from the previous run's — otherwise a source that
+    stays broken for days would re-alert on every scheduled refresh.
+
+    Any send failure is logged and swallowed, same as notify_new_patches."""
+    settings = get_settings()
+    if not settings.ntfy_url or not errors:
+        return
+
+    lines = errors[:_MAX_LINES]
+    if len(errors) > _MAX_LINES:
+        lines.append(f"… and {len(errors) - _MAX_LINES} more")
+    body = "\n".join(lines)
+
+    # status is "error" (every fetcher that ran produced no data at all) or
+    # "partial" (at least one source still came through) — see
+    # refresh_service.run_all_fetchers for how it's derived.
+    title = (
+        "MicrosoftPatchWatch: all sources failed"
+        if status == "error"
+        else "MicrosoftPatchWatch: a source failed"
+    )
+    headers = {
+        "Title": title,
+        "Priority": "urgent" if status == "error" else "high",
+        "Tags": "rotating_light",
+    }
+    if settings.ntfy_token:
+        headers["Authorization"] = f"Bearer {settings.ntfy_token}"
+    if settings.public_base_url:
+        headers["Click"] = settings.public_base_url
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+            response = await client.post(settings.ntfy_url, content=body.encode("utf-8"), headers=headers)
+            response.raise_for_status()
+    except Exception:  # noqa: BLE001 - a broken notify target must not break refreshes
+        logger.exception("Failed to send ntfy notification for %s fetch error(s)", len(errors))

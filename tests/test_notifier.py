@@ -15,7 +15,7 @@ import pytest
 
 from app import notifier
 from app.config import get_settings
-from app.notifier import NewPatchNotice, notify_new_patches
+from app.notifier import NewPatchNotice, notify_fetch_errors, notify_new_patches
 
 
 @pytest.fixture(autouse=True)
@@ -177,3 +177,70 @@ async def test_send_failure_is_swallowed_not_raised(mock_ntfy, monkeypatch):
 
     # Must not raise — a broken notify target must never fail a refresh.
     await notify_new_patches([_notice()])
+
+
+# --- notify_fetch_errors --------------------------------------------------
+
+
+async def test_fetch_errors_noop_without_ntfy_url(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "")
+    get_settings.cache_clear()
+
+    await notify_fetch_errors(["fake: boom"], status="error")
+
+    assert mock_ntfy.requests == []
+
+
+async def test_fetch_errors_noop_with_no_errors(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+
+    await notify_fetch_errors([], status="error")
+
+    assert mock_ntfy.requests == []
+
+
+async def test_fetch_errors_total_failure_is_urgent(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+
+    await notify_fetch_errors(["windows-release-health: table not found"], status="error")
+
+    assert len(mock_ntfy.requests) == 1
+    request = mock_ntfy.requests[0]
+    assert request.headers["Title"] == "MicrosoftPatchWatch: all sources failed"
+    assert request.headers["Priority"] == "urgent"
+    assert request.headers["Tags"] == "rotating_light"
+    assert "windows-release-health: table not found" in request.read().decode("utf-8")
+
+
+async def test_fetch_errors_partial_failure_is_high_not_urgent(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+
+    await notify_fetch_errors(["sql-server: boom"], status="partial")
+
+    request = mock_ntfy.requests[0]
+    assert request.headers["Title"] == "MicrosoftPatchWatch: a source failed"
+    assert request.headers["Priority"] == "high"
+
+
+async def test_fetch_errors_caps_body_at_max_lines(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+
+    errors = [f"fake: error {i}" for i in range(25)]
+    await notify_fetch_errors(errors, status="error")
+
+    body = mock_ntfy.requests[0].read().decode("utf-8")
+    assert body.count("error ") == 20
+    assert "… and 5 more" in body
+
+
+async def test_fetch_errors_send_failure_is_swallowed_not_raised(mock_ntfy, monkeypatch):
+    monkeypatch.setenv("NTFY_URL", "https://ntfy.example.com/patchwatch")
+    get_settings.cache_clear()
+    mock_ntfy.status_code = 500
+
+    # Must not raise — a broken notify target must never fail a refresh.
+    await notify_fetch_errors(["fake: boom"], status="error")

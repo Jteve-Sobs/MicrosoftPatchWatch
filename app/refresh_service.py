@@ -26,7 +26,7 @@ from app.database import async_session_factory
 from app.fetchers.base import PatchInfo, ProductInfo
 from app.fetchers.registry import get_fetchers
 from app.models import FetchRun, Patch, Product
-from app.notifier import NewPatchNotice, notify_new_patches
+from app.notifier import NewPatchNotice, notify_fetch_errors, notify_new_patches
 
 logger = logging.getLogger("patchwatch.refresh")
 settings = get_settings()
@@ -132,6 +132,24 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
             run.new_patches = new_patches
             run.updated_products = len(touched_products)
             run.error = "\n".join(errors)[:8000] if errors else None
+
+            # Only alert when the error text actually changed from the
+            # previous run — a source that's still broken the same way it
+            # was 6 hours ago shouldn't re-alert on every scheduled refresh,
+            # only the transition into (or a change in) a broken state
+            # should. No "first run" suppression here though (unlike
+            # new-patch notices below): a fetcher that's broken from the very
+            # first run is exactly the case worth knowing about immediately.
+            previous_error = (
+                await session.execute(
+                    select(FetchRun.error)
+                    .where(FetchRun.id != run.id)
+                    .order_by(FetchRun.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            should_notify_errors = bool(run.error) and run.error != previous_error
+
             await session.commit()
 
             logger.info(
@@ -141,6 +159,8 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
 
         if new_notices and not is_first_run:
             await notify_new_patches(new_notices)
+        if should_notify_errors:
+            await notify_fetch_errors(errors, run.status)
 
 
 async def _upsert_product(session: AsyncSession, info: ProductInfo) -> None:
