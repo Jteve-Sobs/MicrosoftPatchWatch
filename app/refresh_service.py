@@ -26,6 +26,7 @@ from app.database import async_session_factory
 from app.fetchers.base import PatchInfo, ProductInfo
 from app.fetchers.registry import get_fetchers
 from app.models import FetchRun, Patch, Product
+from app.notifier import NewPatchNotice, notify_new_patches
 
 logger = logging.getLogger("patchwatch.refresh")
 settings = get_settings()
@@ -61,6 +62,15 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
     async with _refresh_lock:
         _last_run_started_at = dt.datetime.now(dt.timezone.utc)
         async with async_session_factory() as session:
+            # A totally fresh DB (first-ever startup fetch) makes every patch
+            # look "new" — that's correct for FetchRun.new_patches, but would
+            # blast a notification with hundreds of entries. Decide this
+            # *before* inserting this run's own row, so it only ever counts
+            # runs that came before it.
+            is_first_run = (
+                await session.execute(select(func.count()).select_from(FetchRun))
+            ).scalar_one() == 0
+
             run = FetchRun(trigger=trigger, status="running")
             session.add(run)
             await session.commit()
@@ -68,6 +78,8 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
             new_patches = 0
             touched_products: set[str] = set()
             errors: list[str] = []
+            product_display_names: dict[str, str] = {}
+            new_notices: list[NewPatchNotice] = []
 
             for fetcher in get_fetchers():
                 try:
@@ -80,6 +92,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                 errors.extend(result.errors)
 
                 for product_info in result.products:
+                    product_display_names[product_info.key] = product_info.display_name
                     await _upsert_product(session, product_info)
                 await session.flush()
 
@@ -92,6 +105,18 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                     touched_products.add(patch_info.product_key)
                     if await _upsert_patch(session, product_id, patch_info):
                         new_patches += 1
+                        new_notices.append(
+                            NewPatchNotice(
+                                product_display_name=product_display_names.get(
+                                    patch_info.product_key, patch_info.product_key
+                                ),
+                                kb_number=patch_info.kb_number or "",
+                                build=patch_info.build or "",
+                                title=patch_info.title,
+                                severity=patch_info.severity,
+                                update_type=patch_info.update_type,
+                            )
+                        )
 
                 await session.commit()
                 logger.info("Fetcher %s done: %s patches seen", fetcher.name, len(result.patches))
@@ -112,6 +137,9 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                 "Refresh (%s) finished: %s new patches across %s products, status=%s",
                 trigger, new_patches, len(touched_products), run.status,
             )
+
+        if new_notices and not is_first_run:
+            await notify_new_patches(new_notices)
 
 
 async def _upsert_product(session: AsyncSession, info: ProductInfo) -> None:

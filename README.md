@@ -156,6 +156,25 @@ correction.
 refresh immediately, even within the `MIN_REFRESH_INTERVAL_MINUTES` debounce
 window, so a correction can be checked against fresh data right away.
 
+## Notifications
+
+Set `NTFY_URL` in `.env` to a [ntfy](https://ntfy.sh/) topic URL (either the
+public `https://ntfy.sh/<topic>` or a self-hosted instance) and every refresh
+that finds new patches sends exactly one push, summarizing all of them (one
+line per patch, capped at 20 with a "+N more" tail) — not one push per patch.
+The priority/tag is bumped for Critical/Important severity patches. Leave
+`NTFY_URL` unset (the default) to disable notifications entirely.
+
+- `NTFY_TOKEN` — bearer token, only needed for a reserved/private ntfy.sh
+  topic or an access-controlled self-hosted instance.
+- `PUBLIC_BASE_URL` — optional, opened when the notification is tapped.
+
+Notifications are global (all products, not per-subscription) and fire after
+every refresh, whatever triggered it (scheduler, page load, or `/admin`'s
+"refresh now") — except the very first fetch run ever on a fresh database,
+which is suppressed since practically every patch looks "new" then. See
+`app/notifier.py`.
+
 ## Known limitations (deliberate scope decisions for v1)
 
 - **No Alembic**: The DB schema is created at startup via `create_all`. Fine
@@ -179,8 +198,10 @@ window, so a correction can be checked against fresh data right away.
 
 - **CVE/severity enrichment** for Windows entries, linked via MSRC
   (build/KB → CVE list, severity as an extra column/badge)
-- **Notifications**: webhook / email / Discord / ntfy on new patches for
-  subscribed products
+- **Per-product notification subscriptions**: notifications (see
+  "Notifications" above) are currently global/all-products; scoping them to
+  individual products/families needs a subscriptions table + UI
+- **More notification channels**: webhook / email / Discord, alongside ntfy
 - **Diff view**: "what changed since build X" between two points in time
 - **Known-issues rollup** per version (from Microsoft Learn's "Known issues"
   pages)

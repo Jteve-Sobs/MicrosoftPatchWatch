@@ -28,6 +28,18 @@ class Settings(BaseSettings):
     # before ever exposing the app beyond localhost.
     admin_password: str = "change-me"
 
+    # Push notifications for newly discovered patches, via ntfy
+    # (https://ntfy.sh or self-hosted — see app/notifier.py). Full topic URL,
+    # e.g. "https://ntfy.sh/my-private-topic" or
+    # "https://ntfy.example.com/patchwatch". Leave unset to disable
+    # notifications entirely.
+    ntfy_url: str | None = None
+    # Bearer token — only needed for a reserved/private ntfy.sh topic or an
+    # access-controlled self-hosted instance.
+    ntfy_token: str | None = None
+    # Optional: opened when the notification itself is tapped/clicked.
+    public_base_url: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
