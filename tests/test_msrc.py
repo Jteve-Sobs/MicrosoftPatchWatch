@@ -46,7 +46,7 @@ async def test_parses_products_and_deduplicates_patches(mock_fetch):
     ]
 
     for patch in result.patches:
-        assert patch.release_date == dt.date(2026, 8, 1)  # from the "2026-Aug" update_id
+        assert patch.release_date == dt.date(2026, 8, 11)  # from the fixture's InitialReleaseDate
         assert patch.title == "August 2026 Security Updates"
         assert patch.update_type == "Security"
         assert patch.build is None  # MSRC has no build numbers — see refresh_service normalization
@@ -84,3 +84,19 @@ async def test_updates_list_is_scanned_newest_first(mock_fetch):
 
     result = await MsrcDotNetFrameworkFetcher().fetch()
     assert len(result.patches) == 3  # August's data still found despite the reversed order
+
+
+def test_parse_release_date_prefers_initial_release_date_over_update_id():
+    """Regression guard: update_id ("2026-Aug") only carries year+month —
+    using it directly would flatten every patch that month to the 1st, which
+    is what shipped originally. InitialReleaseDate has the real day."""
+    fetcher = MsrcDotNetFrameworkFetcher()
+    assert fetcher._parse_release_date({"ID": "2026-Aug", "InitialReleaseDate": "2026-08-11T07:00:00Z"}) == dt.date(
+        2026, 8, 11
+    )
+
+
+def test_parse_release_date_falls_back_to_update_id_when_missing():
+    fetcher = MsrcDotNetFrameworkFetcher()
+    assert fetcher._parse_release_date({"ID": "2026-Aug"}) == dt.date(2026, 8, 1)
+    assert fetcher._parse_release_date({"ID": "2026-Aug", "InitialReleaseDate": "garbage"}) == dt.date(2026, 8, 1)

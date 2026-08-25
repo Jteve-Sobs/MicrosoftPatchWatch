@@ -98,8 +98,14 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                 update_id = update.get("ID")
                 if not update_id:
                     continue
+                # The actual Patch Tuesday date, e.g. 2026-08-11 — NOT the
+                # same as update_id ("2026-Aug"), which only carries
+                # year+month and would silently flatten every patch to the
+                # 1st of the month if used as the release date (that was a
+                # real bug here; see _parse_release_date).
+                release_date = self._parse_release_date(update)
                 try:
-                    await self._process_month(client, update_id, result, known_versions)
+                    await self._process_month(client, update_id, release_date, result, known_versions)
                 except Exception as exc:  # noqa: BLE001
                     msg = f"msrc: failed to process {update_id}: {exc}"
                     logger.exception(msg)
@@ -107,7 +113,12 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         return result
 
     async def _process_month(
-        self, client, update_id: str, result: FetchResult, known_versions: set[tuple[str, str]]
+        self,
+        client,
+        update_id: str,
+        release_date: dt.date | None,
+        result: FetchResult,
+        known_versions: set[tuple[str, str]],
     ) -> None:
         resp = await client.get(CVRF_URL_TEMPLATE.format(update_id=update_id), headers=JSON_HEADERS)
         resp.raise_for_status()
@@ -117,8 +128,6 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         products_by_id = self._versions_by_product_id(product_names)
         if not products_by_id:
             return
-
-        release_date = self._parse_month(update_id)
 
         for prefix, version in {pv for pvs in products_by_id.values() for pv in pvs}:
             if (prefix, version) in known_versions:
@@ -246,9 +255,19 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             )
 
     @staticmethod
-    def _parse_month(update_id: str) -> dt.date | None:
-        # update_id looks like "2026-Aug"
+    def _parse_release_date(update: dict) -> dt.date | None:
+        """The real release day (e.g. 2026-08-11), from the /updates list
+        entry's InitialReleaseDate ("2026-08-11T07:00:00Z"). Falls back to
+        the 1st of the month, parsed from update_id ("2026-Aug"), only if
+        that field is missing or unparseable — every real response has it,
+        this is just defensive."""
+        raw = update.get("InitialReleaseDate")
+        if raw:
+            try:
+                return dt.datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").date()
+            except ValueError:
+                pass
         try:
-            return dt.datetime.strptime(update_id, "%Y-%b").date()
+            return dt.datetime.strptime(update.get("ID", ""), "%Y-%b").date()
         except ValueError:
             return None

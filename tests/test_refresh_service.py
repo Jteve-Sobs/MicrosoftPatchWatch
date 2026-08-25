@@ -323,3 +323,66 @@ async def test_patch_kb_hint_does_not_overwrite_manual_edit(db_session, monkeypa
     async with async_session_factory() as session:
         row = (await session.execute(select(Patch))).scalar_one()
         assert row.kb_number == "KB-CORRECTED"
+
+
+def _kb_patch_info(**overrides) -> PatchInfo:
+    defaults = dict(
+        product_key="dotnetfx-4.8",
+        kb_number="KB1111111",
+        build=None,
+        title="t",
+        update_type="Security",
+        release_date=dt.date(2026, 8, 11),
+        severity=None,
+        kb_url=None,
+        source="msrc",
+    )
+    defaults.update(overrides)
+    return PatchInfo(**defaults)
+
+
+async def test_release_date_self_heals_on_a_later_refresh(db_session, monkeypatch):
+    """Regression guard for the msrc.py bug where every patch that month got
+    flattened to the 1st (see _parse_release_date) — once the source starts
+    reporting the correct date, an already-stored row must pick it up on its
+    next refresh rather than keeping the old wrong one forever."""
+    stale = FetchResult(
+        products=[ProductInfo(key="dotnetfx-4.8", display_name=".NET Framework 4.8", family="dotnet_framework")],
+        patches=[_kb_patch_info(release_date=dt.date(2026, 8, 1))],
+    )
+    _install_fetchers(monkeypatch, _FakeFetcher(stale))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    corrected = FetchResult(patches=[_kb_patch_info(release_date=dt.date(2026, 8, 11))])
+    _install_fetchers(monkeypatch, _FakeFetcher(corrected))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        assert row.release_date == dt.date(2026, 8, 11)
+
+
+async def test_release_date_does_not_overwrite_manual_edit(db_session, monkeypatch):
+    _install_fetchers(
+        monkeypatch,
+        _FakeFetcher(
+            FetchResult(
+                products=[ProductInfo(key="dotnetfx-4.8", display_name=".NET Framework 4.8", family="dotnet_framework")],
+                patches=[_kb_patch_info(release_date=dt.date(2026, 8, 1))],
+            )
+        ),
+    )
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        row.manually_edited = True
+        row.release_date = dt.date(2026, 8, 12)
+        await session.commit()
+
+    _install_fetchers(monkeypatch, _FakeFetcher(FetchResult(patches=[_kb_patch_info(release_date=dt.date(2026, 8, 11))])))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        assert row.release_date == dt.date(2026, 8, 12)
