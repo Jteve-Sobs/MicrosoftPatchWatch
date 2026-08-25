@@ -70,17 +70,22 @@ FRAMEWORK_VERSION_RE = re.compile(r"\.NET Framework ([0-9.]+(?:\s*(?:AND|,)\s*[0
 # 2022", no "installed") that a separate, simpler pattern is all this needs.
 DOTNET_CORE_VERSION_RE = re.compile(r"\.NET (\d+\.\d+) installed on", re.IGNORECASE)
 KB_DIGITS_RE = re.compile(r"(\d{6,7})")
-# Matches the link text on a granular KB's "Additional information about this
-# update" list, e.g. "Description of the Cumulative Update for .NET Framework
-# 3.5, 4.8 and 4.8.1 for Windows 10 Version 21H2 (KB5121646)" -> "Windows 10
-# Version 21H2". Anchored on "for .NET Framework ... for <OS> (KB...)" since
-# that phrasing is the one part every one of these list entries shares — the
-# middle ".+?" (not a digits/comma-only class) is deliberate: the version
-# list can read "3.5, 4.8 AND 4.8.1", and being lazy it still stops at the
-# first following " for ", right before the OS name.
-BUNDLE_DESCRIPTION_RE = re.compile(
-    r"Cumulative Update for \.NET Framework .+? for (.+?)\s*\(KB\d+\)\s*$", re.IGNORECASE
-)
+# Pulls the OS name out of text describing one .NET Framework KB — used both
+# on a granular KB's "Additional information about this update" list entries
+# (e.g. "Description of the Cumulative Update for .NET Framework 3.5, 4.8 and
+# 4.8.1 for Windows 10 Version 21H2 (KB5121646)") and on a KB article's own
+# <h1> (e.g. "August 11, 2026-KB5120703 Cumulative Update for .NET Framework
+# 3.5 and 4.8 for Windows 10, version 1809 and Windows Server 2019", or older-
+# OS articles' different wording: "April 14, 2026-Security and Quality Rollup
+# for .NET Framework 3.5 for Windows Server 2012 (KB5082398)") -> "Windows 10
+# Version 21H2" / "Windows 10, version 1809 and Windows Server 2019" /
+# "Windows Server 2012" respectively. Anchored on ".NET Framework ... for
+# <OS>" since that's the one part every phrasing variant shares — the middle
+# ".+?" (not a digits/comma-only class) is deliberate: the version list can
+# read "3.5, 4.8 AND 4.8.1", and being lazy it still stops at the first
+# following " for ", right before the OS name. The trailing "(KB...)" is
+# optional since only some phrasings put it there.
+KB_ARTICLE_OS_NAME_RE = re.compile(r"\.NET Framework .+? for (.+?)(?:\s*\(KB\d+\))?\s*$", re.IGNORECASE)
 
 FAMILY_BY_PREFIX = {
     "dotnetfx": ProductFamily.DOTNET_FRAMEWORK.value,
@@ -310,6 +315,12 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         added to result.errors — this is a bonus on top of the real,
         per-version data the rest of the fetcher already got right, not
         something worth flagging the whole source as broken over.
+
+        Since it's already fetching every granular KB's article anyway, it
+        also uses the resolved URL to replace that KB's own kb_url — which
+        _handle_remediation set to the Update Catalog search link, the only
+        one available at that point — with a link to this same readable
+        support.microsoft.com article a human would actually want to land on.
         """
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_BUNDLE_REQUESTS)
         seen_bundle_kbs: set[str] = set()
@@ -324,15 +335,29 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                     return
 
             try:
-                for bundle_kb, os_name, href in self._parse_bundle_links(resp.text):
+                resolved_url = str(resp.url)
+                own_os_name = self._parse_article_os_name(resp.text)
+                for patch in result.patches:
+                    if patch.source == self.name and patch.kb_number == f"KB{kb_digits}":
+                        patch.kb_url = resolved_url
+                        # The per-month title ("August 2026 Security Updates")
+                        # is identical on every row for that month regardless
+                        # of version or OS — on its own, not enough to tell
+                        # which OS a given KB is even for. Append it once we
+                        # know it, rather than replacing the title outright,
+                        # so the month context survives alongside it.
+                        if own_os_name and own_os_name not in (patch.title or ""):
+                            patch.title = f"{patch.title} — {own_os_name}" if patch.title else own_os_name
+
+                for bundle_kb, bundle_os_name, href in self._parse_bundle_links(resp.text):
                     if bundle_kb in seen_bundle_kbs:
                         continue
                     seen_bundle_kbs.add(bundle_kb)
-                    product_key = f"dotnetfx-os-{_slugify(os_name)}"
+                    product_key = f"dotnetfx-os-{_slugify(bundle_os_name)}"
                     result.products.append(
                         ProductInfo(
                             key=product_key,
-                            display_name=f"{os_name} — .NET Framework (combined)",
+                            display_name=f"{bundle_os_name} — .NET Framework (combined)",
                             family=ProductFamily.DOTNET_FRAMEWORK.value,
                             is_ltsc=False,
                             source_url="https://support.microsoft.com/en-us/servicing/dotnetframework",
@@ -343,7 +368,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                             product_key=product_key,
                             kb_number=f"KB{bundle_kb}",
                             build=None,
-                            title=f"Cumulative Update for .NET Framework — {os_name}",
+                            title=f"Cumulative Update for .NET Framework — {bundle_os_name}",
                             update_type="Security",
                             release_date=release_date,
                             severity=None,
@@ -352,9 +377,25 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                         )
                     )
             except Exception as exc:  # noqa: BLE001
-                logger.debug("msrc: could not parse KB%s's article for bundle KBs: %s", kb_digits, exc)
+                logger.debug("msrc: could not parse KB%s's article: %s", kb_digits, exc)
 
         await asyncio.gather(*(_handle_one(kb, date) for kb, date in framework_kbs_seen.items()))
+
+    @staticmethod
+    def _parse_article_os_name(html: str) -> str | None:
+        """Pulls the OS name out of a granular KB article's own <h1>, e.g.
+        "August 11, 2026-KB5120703 Cumulative Update for .NET Framework 3.5
+        and 4.8 for Windows 10, version 1809 and Windows Server 2019" ->
+        "Windows 10, version 1809 and Windows Server 2019". This is what
+        _handle_remediation's per-month title ("August 2026 Security
+        Updates") is missing — it comes from the CVRF document, which has no
+        per-OS breakdown at all, only the version(s) each KB applies to."""
+        soup = BeautifulSoup(html, "lxml")
+        h1 = soup.find("h1")
+        if h1 is None:
+            return None
+        m = KB_ARTICLE_OS_NAME_RE.search(h1.get_text(" ", strip=True))
+        return m.group(1).strip() if m else None
 
     @staticmethod
     def _parse_bundle_links(html: str) -> list[tuple[str, str, str]]:
@@ -384,7 +425,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             link = li.find("a")
             if link is None or not link.get("href"):
                 continue
-            m = BUNDLE_DESCRIPTION_RE.search(li.get_text(" ", strip=True))
+            m = KB_ARTICLE_OS_NAME_RE.search(li.get_text(" ", strip=True))
             if not m:
                 continue
             bundle_kb = KB_DIGITS_RE.search(link.get_text(strip=True))

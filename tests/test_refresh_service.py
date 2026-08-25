@@ -386,3 +386,57 @@ async def test_release_date_does_not_overwrite_manual_edit(db_session, monkeypat
     async with async_session_factory() as session:
         row = (await session.execute(select(Patch))).scalar_one()
         assert row.release_date == dt.date(2026, 8, 12)
+
+
+async def test_kb_url_self_heals_on_a_later_refresh(db_session, monkeypatch):
+    """Regression guard for msrc.py's _discover_os_bundles upgrade (Update
+    Catalog search link -> readable support.microsoft.com article): a row
+    already stored with the old link must pick up the new one on its next
+    refresh, not keep the stale link forever."""
+    stale = FetchResult(
+        products=[ProductInfo(key="dotnetfx-4.8", display_name=".NET Framework 4.8", family="dotnet_framework")],
+        patches=[_kb_patch_info(kb_url="https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB1111111")],
+    )
+    _install_fetchers(monkeypatch, _FakeFetcher(stale))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    corrected = FetchResult(
+        patches=[_kb_patch_info(kb_url="https://support.microsoft.com/en-us/servicing/dotnetframework/kb1111111")]
+    )
+    _install_fetchers(monkeypatch, _FakeFetcher(corrected))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        assert row.kb_url == "https://support.microsoft.com/en-us/servicing/dotnetframework/kb1111111"
+
+
+async def test_kb_url_does_not_overwrite_manual_edit(db_session, monkeypatch):
+    _install_fetchers(
+        monkeypatch,
+        _FakeFetcher(
+            FetchResult(
+                products=[ProductInfo(key="dotnetfx-4.8", display_name=".NET Framework 4.8", family="dotnet_framework")],
+                patches=[_kb_patch_info(kb_url="https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB1111111")],
+            )
+        ),
+    )
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        row.manually_edited = True
+        row.kb_url = "https://example.invalid/manually-corrected"
+        await session.commit()
+
+    _install_fetchers(
+        monkeypatch,
+        _FakeFetcher(
+            FetchResult(patches=[_kb_patch_info(kb_url="https://support.microsoft.com/en-us/servicing/dotnetframework/kb1111111")])
+        ),
+    )
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        assert row.kb_url == "https://example.invalid/manually-corrected"

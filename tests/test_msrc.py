@@ -61,14 +61,31 @@ async def test_parses_products_and_deduplicates_patches(mock_fetch):
         ("dotnetfx-os-windows-10-version-1809-and-windows-server-2019", "KB5121645"),
     ]
 
+    # _handle_remediation initially sets kb_url to the Update Catalog search
+    # link (all it has at that point) — _discover_os_bundles then replaces it
+    # with the readable support.microsoft.com article it fetches anyway
+    # (KB5120703's page it fetches for the bundle discovery), for every patch
+    # carrying that KB. KB5120702 has no bundle, but its own article was
+    # still fetched (see _routes) and its kb_url replaced all the same.
+    by_kb = {p.kb_number: p.kb_url for p in result.patches}
+    assert by_kb["KB5120703"] == "https://support.microsoft.com/help/5120703"
+    assert by_kb["KB5120702"] == "https://support.microsoft.com/help/5120702"
+    assert "catalog.update.microsoft.com" not in by_kb["KB5120703"]
+
     for patch in result.patches:
         assert patch.release_date == dt.date(2026, 8, 11)  # from the fixture's InitialReleaseDate
         assert patch.update_type == "Security"
         assert patch.build is None  # MSRC has no build numbers — see refresh_service normalization
-    for patch in result.patches:
-        if patch.product_key.startswith("dotnetfx-os-"):
-            continue  # its title is the bundle's own description, not the month's DocumentTitle
-        assert patch.title == "August 2026 Security Updates"
+
+    # _handle_remediation starts every dotnetfx-* title as the per-month
+    # DocumentTitle, identical for every OS — _discover_os_bundles appends
+    # the OS name it reads off that KB's own article <h1> (see _routes'
+    # fixtures) so it's no longer indistinguishable which OS each KB is for.
+    by_kb_title = {
+        p.kb_number: p.title for p in result.patches if not p.product_key.startswith("dotnetfx-os-")
+    }
+    assert by_kb_title["KB5120702"] == "August 2026 Security Updates — Windows 10, version 1607 and Windows Server 2016"
+    assert by_kb_title["KB5120703"] == "August 2026 Security Updates — Windows 10, version 1809 and Windows Server 2019"
 
     # The .NET 8.0 KB instead lands as a hint, keyed by (product_key, month) —
     # refresh_service matches that against dotnet.py's build-only row.
@@ -196,3 +213,24 @@ async def test_same_bundle_kb_from_two_granular_kbs_is_not_duplicated(mock_fetch
     bundle_patches = [p for p in result.patches if p.kb_number == "KB5199999"]
     assert len(bundle_patches) == 1
     assert len([p for p in result.products if p.key == "dotnetfx-os-windows-server-2022"]) == 1
+
+
+def test_parse_article_os_name_cumulative_update_phrasing():
+    html = '<html><body><h1>August 11, 2026-KB5120703 Cumulative Update for .NET Framework 3.5 and 4.8 for Windows 10, version 1809 and Windows Server 2019</h1></body></html>'
+    assert (
+        MsrcDotNetFrameworkFetcher._parse_article_os_name(html)
+        == "Windows 10, version 1809 and Windows Server 2019"
+    )
+
+
+def test_parse_article_os_name_security_and_quality_rollup_phrasing():
+    """Older-OS articles use different wording ("Security and Quality
+    Rollup" instead of "Cumulative Update") and put the KB number in
+    trailing parens instead of right after the date — both must still
+    resolve to just the OS name."""
+    html = '<html><body><h1>April 14, 2026-Security and Quality Rollup for .NET Framework 3.5 for Windows Server 2012 (KB5082398)</h1></body></html>'
+    assert MsrcDotNetFrameworkFetcher._parse_article_os_name(html) == "Windows Server 2012"
+
+
+def test_parse_article_os_name_returns_none_without_an_h1():
+    assert MsrcDotNetFrameworkFetcher._parse_article_os_name("<html><body><p>no heading here</p></body></html>") is None

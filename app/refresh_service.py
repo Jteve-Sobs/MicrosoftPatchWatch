@@ -297,14 +297,16 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
         .where(Patch.product_id == product_id, kb_filter, build_filter)
         .values(last_seen_at=dt.datetime.now(dt.timezone.utc))
     )
-    # But title/severity/release_date come from the scraper — skip
+    # But title/severity/release_date/kb_url come from the scraper — skip
     # overwriting them on a row a human has manually corrected via /admin, or
-    # the next refresh would silently revert the correction. release_date is
-    # included here (not just set at insert time) so a since-fixed parsing
-    # bug in a fetcher self-heals already-stored rows on their next refresh,
-    # rather than leaving old wrong dates in place forever — see msrc.py's
+    # the next refresh would silently revert the correction. They're
+    # refreshed here (not just set at insert time) so a since-fixed fetcher
+    # bug self-heals already-stored rows on their next refresh, rather than
+    # leaving old wrong data in place forever — release_date for msrc.py's
     # _parse_release_date, which used to flatten every date to the 1st of
-    # the month.
+    # the month; kb_url for msrc.py's _discover_os_bundles, which upgrades it
+    # from an Update Catalog search link to the readable support.microsoft.
+    # com article once that KB's own page has been fetched.
     await session.execute(
         update(Patch)
         .where(
@@ -313,7 +315,7 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
             build_filter,
             Patch.manually_edited.is_(False),
         )
-        .values(title=info.title, severity=info.severity, release_date=info.release_date)
+        .values(title=info.title, severity=info.severity, release_date=info.release_date, kb_url=info.kb_url)
     )
     return False
 
