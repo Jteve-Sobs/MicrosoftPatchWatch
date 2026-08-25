@@ -48,6 +48,11 @@
         "ProductID": "11676-11572",
         "CPE": "cpe:2.3:a:microsoft:.net:4.8:*:*:*:*:*:*:*",
         "Value": "Microsoft .NET Framework 3.5 AND 4.8 on Windows Server 2019 (Server Core installation)"
+      },
+      {
+        "ProductID": "12414",
+        "CPE": "cpe:2.3:a:microsoft:.net:8.0:*:*:*:*:*:*:*",
+        "Value": ".NET 8.0 installed on Windows"
       }
     ]
   },
@@ -278,6 +283,34 @@
           "DateSpecified": false,
           "AffectedFiles": [],
           "SubType": "5120702"
+        }
+      ]
+    },
+    {
+      "CVE": "CVE-2026-62902",
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5122104"
+          },
+          "URL": "https://dotnet.microsoft.com/download/dotnet/8.0",
+          "ProductID": [
+            "12414"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": []
+        },
+        {
+          "URL": "https://support.microsoft.com/help/5122104",
+          "ProductID": [
+            "12414"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": []
         }
       ]
     }

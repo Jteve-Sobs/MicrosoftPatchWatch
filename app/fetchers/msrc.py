@@ -1,6 +1,7 @@
-"""Fetches .NET Framework patch data from the Microsoft Security Response
-Center (MSRC) CVRF API — the closest thing left to a public, machine-readable
-feed since Microsoft retired the security bulletin RSS feed.
+"""Fetches .NET Framework *and* .NET (Core) 5+ patch data from the Microsoft
+Security Response Center (MSRC) CVRF API — the closest thing left to a
+public, machine-readable feed since Microsoft retired the security bulletin
+RSS feed.
 
 Why MSRC and not the release-health pages for .NET Framework: unlike Windows,
 .NET Framework has no equivalent "release information" page with a clean
@@ -8,11 +9,27 @@ history table. MSRC's monthly CVRF documents list every security fix,
 including its KB number and the exact .NET Framework version(s) it applies to,
 via the document's ProductTree + per-vulnerability Remediations.
 
+.NET (Core) 5+ is normally covered by fetchers/dotnet.py, from the official
+dotnet/core releases-index.json — a much cleaner source for build numbers and
+full history, but one that carries *no* KB number at all. MSRC's ProductTree
+also lists ".NET 8.0 installed on Windows/Linux/Mac" (etc.) entries with the
+KB every security release ships under, so this fetcher picks those up too and
+hands them to refresh_service as patch_kb_hints (see FetchResult) rather than
+as full patch rows — dotnet.py already has the real row (with build number,
+full title, non-security releases too); this only fills in the one field it's
+missing, keyed by (product_key, year-month) since that's all MSRC gives us to
+match on (no build number here).
+
 Known limitation: MSRC only covers *security* updates. Non-security .NET
-Framework rollups are not captured here. Data quality also depends on
-Microsoft's CVRF document consistency, which has been known to vary — this
-fetcher is written defensively (per-item try/except) so a malformed entry is
-skipped rather than aborting the whole run.
+Framework rollups are not captured here. It also only lists the fine-grained,
+single-version-branch KBs (e.g. "KB5120705 ... for .NET Framework 3.5 and
+4.8") — the combined "3.5, 4.8 and 4.8.1 in one package" KB Microsoft also
+publishes for the same release is not referenced anywhere in the CVRF
+document (verified against the August 2026 update), so it never appears here
+either. Data quality also depends on Microsoft's CVRF document consistency,
+which has been known to vary — this fetcher is written defensively (per-item
+try/except) so a malformed entry is skipped rather than aborting the whole
+run.
 """
 
 from __future__ import annotations
@@ -36,7 +53,20 @@ JSON_HEADERS = {"Accept": "application/json"}
 MONTHS_TO_SCAN = 6
 
 FRAMEWORK_VERSION_RE = re.compile(r"\.NET Framework ([0-9.]+(?:\s*(?:AND|,)\s*[0-9.]+)*)", re.IGNORECASE)
+# .NET (Core) 5+ product names look like ".NET 8.0 installed on Windows" —
+# distinct enough from the Framework wording above ("... on Windows Server
+# 2022", no "installed") that a separate, simpler pattern is all this needs.
+DOTNET_CORE_VERSION_RE = re.compile(r"\.NET (\d+\.\d+) installed on", re.IGNORECASE)
 KB_DIGITS_RE = re.compile(r"(\d{6,7})")
+
+FAMILY_BY_PREFIX = {
+    "dotnetfx": ProductFamily.DOTNET_FRAMEWORK.value,
+    "dotnet": ProductFamily.DOTNET.value,
+}
+DISPLAY_NAME_BY_PREFIX = {
+    "dotnetfx": ".NET Framework {version}",
+    "dotnet": ".NET {version}",
+}
 
 
 def _split_versions(raw: str) -> list[str]:
@@ -62,7 +92,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
 
             updates = sorted(updates, key=lambda u: u.get("InitialReleaseDate", ""), reverse=True)[:MONTHS_TO_SCAN]
 
-            known_versions: set[str] = set()
+            known_versions: set[tuple[str, str]] = set()
 
             for update in updates:
                 update_id = update.get("ID")
@@ -76,26 +106,30 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                     result.errors.append(msg)
         return result
 
-    async def _process_month(self, client, update_id: str, result: FetchResult, known_versions: set[str]) -> None:
+    async def _process_month(
+        self, client, update_id: str, result: FetchResult, known_versions: set[tuple[str, str]]
+    ) -> None:
         resp = await client.get(CVRF_URL_TEMPLATE.format(update_id=update_id), headers=JSON_HEADERS)
         resp.raise_for_status()
         doc = resp.json()
 
         product_names = self._collect_product_names(doc.get("ProductTree", {}))
-        framework_products = self._framework_versions_by_product_id(product_names)
-        if not framework_products:
+        products_by_id = self._versions_by_product_id(product_names)
+        if not products_by_id:
             return
 
-        for version in {v for versions in framework_products.values() for v in versions}:
-            if version in known_versions:
+        release_date = self._parse_month(update_id)
+
+        for prefix, version in {pv for pvs in products_by_id.values() for pv in pvs}:
+            if (prefix, version) in known_versions:
                 continue
-            known_versions.add(version)
-            product_key = f"dotnetfx-{version}"
+            known_versions.add((prefix, version))
+            product_key = f"{prefix}-{version}"
             result.products.append(
                 ProductInfo(
                     key=product_key,
-                    display_name=f".NET Framework {version}",
-                    family=ProductFamily.DOTNET_FRAMEWORK.value,
+                    display_name=DISPLAY_NAME_BY_PREFIX[prefix].format(version=version),
+                    family=FAMILY_BY_PREFIX[prefix],
                     is_ltsc=False,
                     source_url="https://msrc.microsoft.com/update-guide",
                 )
@@ -108,7 +142,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             for remediation in vuln.get("Remediations", []) or []:
                 try:
                     self._handle_remediation(
-                        remediation, framework_products, update_id, title, result, seen_in_month
+                        remediation, products_by_id, release_date, title, result, seen_in_month
                     )
                 except Exception:  # noqa: BLE001
                     continue
@@ -133,22 +167,31 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         return names
 
     @staticmethod
-    def _framework_versions_by_product_id(product_names: dict[str, str]) -> dict[str, list[str]]:
-        result: dict[str, list[str]] = {}
+    def _versions_by_product_id(product_names: dict[str, str]) -> dict[str, list[tuple[str, str]]]:
+        """Maps ProductID -> [(product_key_prefix, version), ...] for every
+        product line this fetcher understands — "dotnetfx" for .NET
+        Framework (a product line can cover several versions in one entry,
+        e.g. "3.5 AND 4.8.1"), "dotnet" for .NET (Core) 5+ (always exactly
+        one version). Prefixes match the product_key scheme fetchers/dotnet.py
+        uses, so patches for "dotnet" land on the same product row."""
+        result: dict[str, list[tuple[str, str]]] = {}
         for pid, name in product_names.items():
-            if ".net framework" not in name.lower():
-                continue
-            m = FRAMEWORK_VERSION_RE.search(name)
-            if not m:
-                continue
-            result[pid] = _split_versions(m.group(1))
+            lname = name.lower()
+            if ".net framework" in lname:
+                m = FRAMEWORK_VERSION_RE.search(name)
+                if m:
+                    result[pid] = [("dotnetfx", v) for v in _split_versions(m.group(1))]
+            elif ".net" in lname:
+                m = DOTNET_CORE_VERSION_RE.search(name)
+                if m:
+                    result[pid] = [("dotnet", m.group(1))]
         return result
 
     def _handle_remediation(
         self,
         remediation: dict,
-        framework_products: dict[str, list[str]],
-        update_id: str,
+        products_by_id: dict[str, list[tuple[str, str]]],
+        release_date: dt.date | None,
         title: str | None,
         result: FetchResult,
         seen_in_month: set[tuple[str, str]],
@@ -157,9 +200,9 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             return
 
         product_ids = [str(p) for p in remediation.get("ProductID", []) or []]
-        versions: set[str] = set()
+        versions: set[tuple[str, str]] = set()
         for pid in product_ids:
-            versions.update(framework_products.get(pid, []))
+            versions.update(products_by_id.get(pid, []))
         if not versions:
             return
 
@@ -171,16 +214,26 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         kb_number = f"KB{kb_match.group(1)}"
         kb_url = remediation.get("URL") or f"https://support.microsoft.com/help/{kb_match.group(1)}"
 
-        release_date = self._parse_month(update_id)
-
-        for version in versions:
-            dedup_key = (version, kb_number)
+        for prefix, version in versions:
+            product_key = f"{prefix}-{version}"
+            dedup_key = (product_key, kb_number)
             if dedup_key in seen_in_month:
                 continue
             seen_in_month.add(dedup_key)
+
+            if prefix == "dotnet":
+                # dotnet.py already writes the real row for this product/month
+                # (build number, full title, non-security releases too) — we
+                # only know the KB, not the build, so we can't match it to a
+                # row ourselves. Hand it to refresh_service as a hint instead
+                # of a competing kb-less patch row; see FetchResult.
+                if release_date:
+                    result.patch_kb_hints[(product_key, release_date.strftime("%Y-%m"))] = (kb_number, kb_url)
+                continue
+
             result.patches.append(
                 PatchInfo(
-                    product_key=f"dotnetfx-{version}",
+                    product_key=product_key,
                     kb_number=kb_number,
                     build=None,
                     title=title or f".NET Framework {version} security update",

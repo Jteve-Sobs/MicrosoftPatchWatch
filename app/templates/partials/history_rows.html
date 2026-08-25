@@ -17,8 +17,13 @@
         {% if p.kb_number and p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number }}</a>
         {% else %}{{ p.kb_number or "–" }}{% endif %}
       </td>
+      {# See all_tables.html's build cell for why release_notes_url (the
+         source's own link, e.g. dotnet.py's GitHub release notes) takes
+         priority over kb_url here — a KB hint may have overwritten kb_url
+         with the KB article link instead. #}
+      {% set build_link = p.release_notes_url or (p.kb_url if not p.kb_number else None) %}
       <td>
-        {% if p.build and not p.kb_number and p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.build }}</a>
+        {% if p.build and build_link %}<a href="{{ build_link }}" target="_blank" rel="noopener">{{ p.build }}</a>
         {% else %}{{ p.build or "–" }}{% endif %}
       </td>
       <td>{% if p.update_type %}<span class="badge badge-{{ p.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (p.update_type|lower|replace(' ', '-'))) }}</span>{% endif %}</td>

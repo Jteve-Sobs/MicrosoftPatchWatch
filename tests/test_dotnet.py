@@ -58,6 +58,10 @@ async def test_products_and_patches_from_active_channel(mock_fetch):
     assert latest.release_date == dt.date(2026, 8, 11)
     assert latest.update_type == "Security"
     assert latest.kb_number is None  # .NET has no KB numbers — see refresh_service normalization
+    # Both link fields start out equal (msrc.py's KB hint, if any, later
+    # overwrites kb_url but never release_notes_url — see models.Patch).
+    assert latest.kb_url == latest.release_notes_url
+    assert latest.release_notes_url
 
 
 async def test_channel_fetch_failure_falls_back_to_latest_release_only(mock_fetch):

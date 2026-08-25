@@ -26,13 +26,18 @@ async def test_parses_products_and_deduplicates_patches(mock_fetch):
 
     # 9 real ProductIDs in the fixture collapse to 2 distinct .NET Framework
     # versions ("3.5 AND 4.8" on several products, plain "4.8" on others) —
-    # exercises _split_versions and the known_versions de-dup.
+    # exercises _split_versions and the known_versions de-dup. Plus the one
+    # .NET (Core) 8.0 product the fixture also carries.
     product_keys = {p.key for p in result.products}
-    assert product_keys == {"dotnetfx-4.8", "dotnetfx-3.5"}
+    assert product_keys == {"dotnetfx-4.8", "dotnetfx-3.5", "dotnet-8.0"}
 
-    # Fixture has 3 vulnerabilities: two (different CVEs) share KB5120702 on
-    # 4.8 — the second must be dropped by seen_in_month — and one (KB5120703)
-    # covers both 3.5 and 4.8, producing one patch per version.
+    # Fixture has 4 vulnerabilities: two (different CVEs) share KB5120702 on
+    # 4.8 — the second must be dropped by seen_in_month — one (KB5120703)
+    # covers both 3.5 and 4.8, producing one patch per version, and one
+    # (CVE-2026-62902, KB5122104) is a .NET 8.0 fix — that one must NOT show
+    # up here (see patch_kb_hints below): unlike Framework, a .NET (Core) row
+    # from this source would have no build number to match dotnet.py's real
+    # row on, so it'd just be a second, incomplete row for the same release.
     kbs_by_product = sorted((p.product_key, p.kb_number) for p in result.patches)
     assert kbs_by_product == [
         ("dotnetfx-3.5", "KB5120703"),
@@ -45,6 +50,10 @@ async def test_parses_products_and_deduplicates_patches(mock_fetch):
         assert patch.title == "August 2026 Security Updates"
         assert patch.update_type == "Security"
         assert patch.build is None  # MSRC has no build numbers — see refresh_service normalization
+
+    # The .NET 8.0 KB instead lands as a hint, keyed by (product_key, month) —
+    # refresh_service matches that against dotnet.py's build-only row.
+    assert result.patch_kb_hints == {("dotnet-8.0", "2026-08"): ("KB5122104", "https://dotnet.microsoft.com/download/dotnet/8.0")}
 
 
 async def test_one_missing_month_does_not_break_the_others(mock_fetch):

@@ -54,9 +54,18 @@
           </td>
           {% endif %}
           {% if show_build %}
+          {# release_notes_url is the source's own "read more" link (e.g.
+             dotnet.py's GitHub release notes) — independent of kb_url, which
+             a later KB hint (see refresh_service._apply_patch_kb_hints) may
+             have overwritten with the KB article link instead. Prefer it
+             here so the build number keeps its own link either way; only
+             fall back to kb_url (the pre-hint behavior) for rows that never
+             got a release_notes_url (every source except dotnet.py). #}
+          {% set build_link = latest.release_notes_url if latest else None %}
+          {% if latest and not build_link and not latest.kb_number %}{% set build_link = latest.kb_url %}{% endif %}
           <td class="cell-build" data-sort="{{ latest.build if latest and latest.build else '' }}">
-            {% if latest and latest.build and not latest.kb_number and latest.kb_url %}
-              <a href="{{ latest.kb_url }}" target="_blank" rel="noopener">{{ latest.build }}</a>
+            {% if latest and latest.build and build_link %}
+              <a href="{{ build_link }}" target="_blank" rel="noopener">{{ latest.build }}</a>
             {% else %}{{ latest.build if latest and latest.build else "–" }}{% endif %}
           </td>
           {% endif %}

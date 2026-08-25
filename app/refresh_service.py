@@ -80,6 +80,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
             errors: list[str] = []
             product_display_names: dict[str, str] = {}
             new_notices: list[NewPatchNotice] = []
+            patch_kb_hints: dict[tuple[str, str], tuple[str, str | None]] = {}
 
             for fetcher in get_fetchers():
                 try:
@@ -90,6 +91,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                     continue
 
                 errors.extend(result.errors)
+                patch_kb_hints.update(result.patch_kb_hints)
 
                 for product_info in result.products:
                     product_display_names[product_info.key] = product_info.display_name
@@ -121,6 +123,10 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
 
                 await session.commit()
                 logger.info("Fetcher %s done: %s patches seen", fetcher.name, len(result.patches))
+
+            if patch_kb_hints:
+                await _apply_patch_kb_hints(session, patch_kb_hints)
+                await session.commit()
 
             run.finished_at = dt.datetime.now(dt.timezone.utc)
             if errors and not touched_products:
@@ -207,6 +213,52 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
     # is the second time this exact class of bug showed up, once per column.
     kb_number = info.kb_number or ""
     build = info.build or ""
+
+    # Sources that identify a release by build number rather than KB (only
+    # dotnet.py today) always write kb_number="" themselves — the real KB,
+    # if MSRC has one for that product+month, gets filled in afterwards by
+    # _apply_patch_kb_hints, mutating just this row's kb_number in place (see
+    # its docstring). So for these, "build" alone is this row's natural key:
+    # matching on the full (kb_number, build) triple like the branch below
+    # would stop finding the row the moment a hint fills in its kb_number —
+    # every later refresh would then insert a fresh, blank-kb duplicate for
+    # the same build, since the triple it re-upserts with no longer matches
+    # anything. No DB-level unique constraint covers (product_id, build)
+    # alone, so this branch checks and inserts/updates in plain application
+    # code instead of via ON CONFLICT.
+    if build and not kb_number:
+        existing_id = (
+            await session.execute(
+                select(Patch.id).where(Patch.product_id == product_id, Patch.build == build)
+            )
+        ).scalar_one_or_none()
+        if existing_id is None:
+            patch = Patch(
+                product_id=product_id,
+                kb_number=kb_number,
+                build=build,
+                title=info.title,
+                update_type=info.update_type,
+                release_date=info.release_date,
+                severity=info.severity,
+                kb_url=info.kb_url,
+                release_notes_url=info.release_notes_url,
+                source=info.source,
+            )
+            session.add(patch)
+            await session.flush()
+            return True
+
+        await session.execute(
+            update(Patch).where(Patch.id == existing_id).values(last_seen_at=dt.datetime.now(dt.timezone.utc))
+        )
+        await session.execute(
+            update(Patch)
+            .where(Patch.id == existing_id, Patch.manually_edited.is_(False))
+            .values(title=info.title, severity=info.severity, release_notes_url=info.release_notes_url)
+        )
+        return False
+
     insert_stmt = (
         pg_insert(Patch)
         .values(
@@ -218,6 +270,7 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
             release_date=info.release_date,
             severity=info.severity,
             kb_url=info.kb_url,
+            release_notes_url=info.release_notes_url,
             source=info.source,
         )
         .on_conflict_do_nothing(index_elements=[Patch.product_id, Patch.kb_number, Patch.build])
@@ -253,3 +306,36 @@ async def _upsert_patch(session: AsyncSession, product_id: int, info: PatchInfo)
         .values(title=info.title, severity=info.severity)
     )
     return False
+
+
+async def _apply_patch_kb_hints(
+    session: AsyncSession, hints: dict[tuple[str, str], tuple[str, str | None]]
+) -> None:
+    """Fills in kb_number/kb_url on existing build-only patch rows from
+    another fetcher's patch_kb_hints (see FetchResult) — e.g. dotnet.py's
+    .NET Core rows, which have a build number but no KB, matched against
+    msrc.py's KB-only knowledge of the same product+month. Runs once after
+    every fetcher has committed, so it doesn't depend on fetcher order.
+
+    Matches on (product key, release month) rather than an exact date: the
+    two sources are usually driven by the same Patch Tuesday, but there's no
+    guarantee they always agree on the exact day.
+    """
+    rows = (
+        await session.execute(
+            select(Patch.id, Product.key, Patch.release_date)
+            .join(Product, Product.id == Patch.product_id)
+            .where(Patch.kb_number == "", Patch.build != "", Patch.manually_edited.is_(False))
+        )
+    ).all()
+
+    for patch_id, product_key, release_date in rows:
+        if release_date is None:
+            continue
+        hint = hints.get((product_key, release_date.strftime("%Y-%m")))
+        if hint is None:
+            continue
+        kb_number, kb_url = hint
+        await session.execute(
+            update(Patch).where(Patch.id == patch_id).values(kb_number=kb_number, kb_url=kb_url)
+        )

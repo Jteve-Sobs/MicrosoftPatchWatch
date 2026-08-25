@@ -176,6 +176,7 @@ async def _build_export_data(scope: str) -> dict:
                         "severity": pt.severity or None,
                         "source": pt.source or None,
                         "url": pt.kb_url or None,
+                        "release_notes_url": pt.release_notes_url or None,
                     }
                     for pt in product_patches
                 ],

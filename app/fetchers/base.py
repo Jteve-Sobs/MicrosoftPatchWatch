@@ -38,6 +38,8 @@ class PatchInfo:
     severity: str | None
     kb_url: str | None
     source: str
+    # See models.Patch.release_notes_url — only dotnet.py sets this today.
+    release_notes_url: str | None = None
 
 
 @dataclasses.dataclass(slots=True)
@@ -45,6 +47,15 @@ class FetchResult:
     products: list[ProductInfo] = dataclasses.field(default_factory=list)
     patches: list[PatchInfo] = dataclasses.field(default_factory=list)
     errors: list[str] = dataclasses.field(default_factory=list)
+    # (product_key, "YYYY-MM") -> (kb_number, kb_url). For a product whose
+    # patch history is split across two sources that each have half the data
+    # (e.g. dotnet.py has .NET Core's build numbers but no KB; msrc.py has the
+    # KB but no build to match a row on) - a fetcher that only knows the KB
+    # side puts it here instead of a competing, build-less patch row; see
+    # refresh_service._apply_patch_kb_hints, which fills in kb_number/kb_url
+    # on the matching build-only row (by product + release month) once all
+    # fetchers have run.
+    patch_kb_hints: dict[tuple[str, str], tuple[str, str | None]] = dataclasses.field(default_factory=dict)
 
 
 class BaseFetcher:

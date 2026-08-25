@@ -73,6 +73,13 @@ class Patch(Base):
     release_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True, index=True)
     severity: Mapped[str | None] = mapped_column(String(30), nullable=True)
     kb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # A source-native "read more" link, independent of kb_url — exists for
+    # .NET Core: dotnet.py's own link (GitHub release notes) vs the KB link
+    # msrc.py's patch_kb_hints later fills into kb_url (see
+    # refresh_service._apply_patch_kb_hints) are two different, both-worth-
+    # keeping URLs for the same row. NULL for every other source, which only
+    # ever has the one link (kb_url already is the right one there).
+    release_notes_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(60))
 
     # Set by /admin whenever a human creates or edits this row. Once set, the

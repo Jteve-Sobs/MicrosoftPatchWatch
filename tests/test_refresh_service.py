@@ -12,12 +12,17 @@ so a real HTTP call to ntfy never happens.
 
 from __future__ import annotations
 
+import datetime as dt
+
 import httpx
 import pytest
+from sqlalchemy import select
 
 from app import refresh_service
 from app.config import get_settings
+from app.database import async_session_factory
 from app.fetchers.base import BaseFetcher, FetchResult, PatchInfo, ProductInfo
+from app.models import Patch
 
 
 class _FakeFetcher(BaseFetcher):
@@ -189,3 +194,132 @@ async def test_healthy_run_does_not_alert(db_session, monkeypatch, mock_ntfy):
     await refresh_service.run_all_fetchers(trigger="test")
 
     assert mock_ntfy.requests == []
+
+
+async def test_patch_kb_hint_fills_in_build_only_row(db_session, monkeypatch):
+    """Mirrors the real dotnet.py/msrc.py split: one fetcher creates the real
+    row (build number, no KB), another only knows the KB for the same
+    product+month (see FetchResult.patch_kb_hints) — the hint must land on
+    that row rather than becoming a second, incomplete one, and must only
+    touch kb_url — dotnet.py's own release_notes_url (its GitHub link) is a
+    separate field precisely so this doesn't clobber it (see
+    models.Patch.release_notes_url)."""
+    builder = _FakeFetcher(
+        FetchResult(
+            products=[ProductInfo(key="dotnet-8.0", display_name=".NET 8.0", family="dotnet")],
+            patches=[
+                PatchInfo(
+                    product_key="dotnet-8.0",
+                    kb_number=None,
+                    build="8.0.30",
+                    title=".NET 8.0 – 8.0.30",
+                    update_type="Security",
+                    release_date=dt.date(2026, 8, 11),
+                    severity=None,
+                    kb_url="https://github.com/dotnet/core",
+                    source="dotnet-core",
+                    release_notes_url="https://github.com/dotnet/core",
+                )
+            ],
+        )
+    )
+    hinter = _FakeFetcher(
+        FetchResult(
+            patch_kb_hints={("dotnet-8.0", "2026-08"): ("KB5122104", "https://support.microsoft.com/help/5122104")}
+        )
+    )
+    _install_fetchers(monkeypatch, builder, hinter)
+
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        rows = (await session.execute(select(Patch))).scalars().all()
+
+    assert len(rows) == 1  # no second, KB-only row
+    assert rows[0].build == "8.0.30"
+    assert rows[0].kb_number == "KB5122104"
+    assert rows[0].kb_url == "https://support.microsoft.com/help/5122104"
+    assert rows[0].release_notes_url == "https://github.com/dotnet/core"  # untouched by the hint
+
+
+async def test_kb_hint_survives_next_runs_build_only_reupsert(db_session, monkeypatch):
+    """Regression guard: once a hint fills in a build-only row's kb_number,
+    dotnet.py keeps re-upserting that same release every subsequent refresh
+    with kb_number=None (it has no way to know the hint happened) — that
+    must update the existing row, not insert a second, blank-kb one for the
+    same build (see _upsert_patch's build-only branch)."""
+    builder = _FakeFetcher(
+        FetchResult(
+            products=[ProductInfo(key="dotnet-8.0", display_name=".NET 8.0", family="dotnet")],
+            patches=[
+                PatchInfo(
+                    product_key="dotnet-8.0",
+                    kb_number=None,
+                    build="8.0.30",
+                    title=".NET 8.0 – 8.0.30",
+                    update_type="Security",
+                    release_date=dt.date(2026, 8, 11),
+                    severity=None,
+                    kb_url=None,
+                    source="dotnet-core",
+                )
+            ],
+        )
+    )
+    hinter = _FakeFetcher(
+        FetchResult(patch_kb_hints={("dotnet-8.0", "2026-08"): ("KB5122104", "https://support.microsoft.com/help/5122104")})
+    )
+    _install_fetchers(monkeypatch, builder, hinter)
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    # Next scheduled refresh: same builder output (kb_number=None again),
+    # hint source now empty (already applied, nothing new to report).
+    _install_fetchers(monkeypatch, builder, _FakeFetcher(FetchResult()))
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        rows = (await session.execute(select(Patch))).scalars().all()
+
+    assert len(rows) == 1
+    assert rows[0].build == "8.0.30"
+    assert rows[0].kb_number == "KB5122104"
+
+
+async def test_patch_kb_hint_does_not_overwrite_manual_edit(db_session, monkeypatch):
+    builder = _FakeFetcher(
+        FetchResult(
+            products=[ProductInfo(key="dotnet-8.0", display_name=".NET 8.0", family="dotnet")],
+            patches=[
+                PatchInfo(
+                    product_key="dotnet-8.0",
+                    kb_number=None,
+                    build="8.0.30",
+                    title=".NET 8.0 – 8.0.30",
+                    update_type="Security",
+                    release_date=dt.date(2026, 8, 11),
+                    severity=None,
+                    kb_url=None,
+                    source="dotnet-core",
+                )
+            ],
+        )
+    )
+    hinter = _FakeFetcher(
+        FetchResult(patch_kb_hints={("dotnet-8.0", "2026-08"): ("KB9999999", "https://example.invalid")})
+    )
+    _install_fetchers(monkeypatch, builder, hinter)
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        row.manually_edited = True
+        row.kb_number = "KB-CORRECTED"
+        await session.commit()
+
+    # A second refresh with the same hint must not clobber the manual fix.
+    _install_fetchers(monkeypatch, builder, hinter)
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        row = (await session.execute(select(Patch))).scalar_one()
+        assert row.kb_number == "KB-CORRECTED"

@@ -1,9 +1,11 @@
 """Fetches modern .NET (Core, 5+) release history from the official
 dotnet/core releases-index.json on GitHub. This is a clean, maintained JSON
-source (no scraping needed).
+source (no scraping needed) — but it has no KB number for any release.
 
-Not to be confused with fetchers/msrc.py, which covers *.NET Framework*
-(3.5 / 4.x) — a different product line with no equivalent JSON feed.
+fetchers/msrc.py covers *.NET Framework* (3.5 / 4.x), a different product
+line with no equivalent JSON feed — and also picks up this product line's KB
+numbers from MSRC's security data, handing them to refresh_service as
+patch_kb_hints to fill in on the rows created here (see FetchResult).
 """
 
 from __future__ import annotations
@@ -101,6 +103,11 @@ class DotNetFetcher(BaseFetcher):
                         severity=None,
                         kb_url=rel.get("release-notes") or releases_url,
                         source=self.name,
+                        # Same value as kb_url above — kept as a separate
+                        # field so a later KB hint (see msrc.py) can overwrite
+                        # kb_url without losing this GitHub link; see
+                        # models.Patch.release_notes_url.
+                        release_notes_url=rel.get("release-notes") or releases_url,
                     )
                 )
             if releases:
@@ -121,5 +128,6 @@ class DotNetFetcher(BaseFetcher):
                     severity=None,
                     kb_url=releases_url,
                     source=self.name,
+                    release_notes_url=releases_url,
                 )
             )

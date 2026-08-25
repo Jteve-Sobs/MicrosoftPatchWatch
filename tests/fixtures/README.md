@@ -42,9 +42,13 @@ All pulled on 2026-08-17, except `sql_server/` (2026-08-18).
   the full response is ~6MB/798 vulnerabilities covering every Microsoft
   product. Kept: `DocumentTitle`, the `.NET Framework`-only `ProductTree.
   FullProductName` entries (`ProductTree.Branch` is unused dead weight —
-  the fetcher only ever reads the flat `FullProductName` list), and 3 real
+  the fetcher only ever reads the flat `FullProductName` list), 3 real
   vulnerabilities referencing those product IDs — two of which share one KB
-  (5120702), which is what exercises the `seen_in_month` de-dup.
+  (5120702), which is what exercises the `seen_in_month` de-dup — plus one
+  real `.NET 8.0 installed on Windows` ProductTree entry (ProductID 12414)
+  and its one real vulnerability (CVE-2026-62902, KB5122104), added on top
+  to exercise the fetcher's other product line (.NET Core, not Framework) —
+  see the `patch_kb_hints` assertions in test_msrc.py.
 
 - `dotnet/releases_index.json` — real `releases-index.json`, trimmed from 14
   channels to 3: `9.0` (in support, has a `releases.json`), `1.0` (long-EOL,

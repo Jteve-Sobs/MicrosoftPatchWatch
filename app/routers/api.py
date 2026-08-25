@@ -49,6 +49,7 @@ async def list_patches(product_key: str):
                 "release_date": pt.release_date.isoformat() if pt.release_date else None,
                 "severity": pt.severity,
                 "kb_url": pt.kb_url,
+                "release_notes_url": pt.release_notes_url,
                 "source": pt.source,
             }
             for pt in patches
