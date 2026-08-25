@@ -80,6 +80,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "badge.ltsc": "LTSC",
         "badge.server": "Server",
         "nav.admin": "Admin",
+        "theme.toggle": "Toggle light/dark theme",
         "admin.title": "Admin",
         "admin.intro": (
             "Manually correct, add, or delete individual patch entries — for "
@@ -172,6 +173,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "badge.ltsc": "LTSC",
         "badge.server": "Server",
         "nav.admin": "Admin",
+        "theme.toggle": "Hell-/Dunkelmodus umschalten",
         "admin.title": "Admin",
         "admin.intro": (
             "Einzelne Patch-Einträge manuell korrigieren, hinzufügen oder löschen — "

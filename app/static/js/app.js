@@ -379,7 +379,43 @@ document.body.addEventListener("htmx:afterSwap", (evt) => {
 document.addEventListener("DOMContentLoaded", () => {
   patchwatchRefreshVisibility();
   document.querySelectorAll(".patch-table").forEach(patchwatchApplyStoredSort);
+  patchwatchUpdateThemeToggleIcon();
 });
+
+// --- Light/dark theme toggle ----------------------------------------------
+// The actual light/dark CSS values live entirely in style.css (three states:
+// system preference by default, overridden either way once the user picks
+// one explicitly here). This just flips document.documentElement's
+// data-theme attribute and remembers the choice — base.html's inline <head>
+// script re-applies it on the next page load, before first paint, so
+// there's no flash of the wrong theme.
+const THEME_STORAGE_KEY = "patchwatch-theme";
+
+function patchwatchIsDarkActive() {
+  const explicit = document.documentElement.getAttribute("data-theme");
+  if (explicit === "light" || explicit === "dark") return explicit === "dark";
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function patchwatchUpdateThemeToggleIcon() {
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  // Shows the current effective theme (sun while light is active, moon
+  // while dark is active) — not the state a click would switch to.
+  btn.textContent = patchwatchIsDarkActive() ? "🌙" : "☀️";
+}
+
+function patchwatchToggleTheme() {
+  const next = patchwatchIsDarkActive() ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+  } catch (e) {
+    // Private browsing / storage disabled — theme still applies for this
+    // page view, it just won't be remembered for the next one.
+  }
+  patchwatchUpdateThemeToggleIcon();
+}
 
 // --- "Jetzt aktualisieren" feedback --------------------------------------
 // /refresh is debounced server-side (MIN_REFRESH_INTERVAL_MINUTES) and the

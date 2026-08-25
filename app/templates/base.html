@@ -6,6 +6,21 @@
   <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
   <link rel="stylesheet" href="{{ static_version('/static/css/style.css') }}">
+  <script>
+    // Applies a saved explicit theme choice before first paint — deferred
+    // scripts (app.js) run too late for this and would cause a visible
+    // flash of the wrong theme. See patchwatchToggleTheme in app.js and the
+    // three-state CSS (:root / @media prefers-color-scheme / [data-theme])
+    // in style.css.
+    (function () {
+      try {
+        var saved = localStorage.getItem("patchwatch-theme");
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script src="{{ static_version('/static/js/htmx.min.js') }}" defer></script>
   <script>
     // Small subset of strings the client-side hide/show JS needs to render
@@ -27,6 +42,7 @@
       <a class="brand" href="/">🕐 {{ t('app.title') }}</a>
       <div class="header-right">
         <div id="status-bar" hx-get="/partials/status" hx-trigger="load, every 20s" hx-swap="innerHTML"></div>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('theme.toggle') }}" title="{{ t('theme.toggle') }}" onclick="patchwatchToggleTheme()">🌓</button>
         <nav class="lang-switch" aria-label="Language">
           {% for code in ["en", "de"] %}
           <a href="/lang/{{ code }}?next={{ request.url.path }}" class="{{ 'active' if locale == code else '' }}">{{ code|upper }}</a>

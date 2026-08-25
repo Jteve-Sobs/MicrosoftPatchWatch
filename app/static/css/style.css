@@ -16,8 +16,17 @@
   --sev-ltsc: #8452c9;
 }
 
+/* Three theme states: OS preference (this media query) is the default,
+   overridden either way by an explicit user choice — the header's toggle
+   button sets/clears document.documentElement[data-theme] and remembers it
+   in localStorage (see app.js's patchwatchToggleTheme / the inline script in
+   base.html that applies it before first paint, to avoid a flash of the
+   wrong theme). ":not([data-theme=light])" is what lets an explicit "dark"
+   choice agree with system-dark instead of conflicting with it; the
+   plain [data-theme=dark] block below is what makes dark actually override
+   a system-light preference. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14171c;
     --surface: #1c2027;
     --surface-alt: #23272f;
@@ -28,6 +37,17 @@
     --accent-contrast: #0c111a;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
+}
+:root[data-theme="dark"] {
+  --bg: #14171c;
+  --surface: #1c2027;
+  --surface-alt: #23272f;
+  --text: #e7eaee;
+  --text-muted: #97a1ad;
+  --border: #2d3239;
+  --accent: #5c8dff;
+  --accent-contrast: #0c111a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 * { box-sizing: border-box; }
@@ -82,6 +102,18 @@ body {
 }
 .lang-switch a:hover { border-color: var(--border); }
 .lang-switch a.active { color: var(--accent); border-color: var(--border); background: var(--surface-alt); }
+
+.theme-toggle {
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.theme-toggle:hover, .theme-toggle:focus-visible { color: var(--text); border-color: var(--border); }
 
 .status { font-size: 0.85rem; color: var(--text-muted); }
 .status-error { color: var(--sev-security); }
