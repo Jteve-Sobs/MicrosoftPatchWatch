@@ -357,6 +357,29 @@ tr.history-row:not([hidden]) td { padding-top: 4px; }
 .history-table thead th { background: transparent; padding: 6px 10px; }
 .history-table td { padding: 6px 10px; }
 
+/* .NET Framework's Version column can run long (the OS-bundle products in
+   particular, e.g. "Windows 10, version 1809 and Windows Server 2019 —
+   .NET Framework (combined)"), and since _discover_os_bundles started
+   appending the OS name to every KB's title, so can the history table's
+   Title column — both would otherwise push the rest of the row's columns
+   out. Narrower + wrapping keeps them from dominating, here only: other
+   families' version names and titles stay short and don't need this. */
+section[data-family="dotnet_framework"] .version-name {
+  display: inline-block;
+  max-width: 200px;
+  overflow-wrap: break-word;
+}
+section[data-family="dotnet_framework"] .history-table .cell-title {
+  max-width: 260px;
+  overflow-wrap: break-word;
+}
+/* .NET Framework patches never have a build number (MSRC has none — see
+   msrc.py) — every row in this family's history always shows "–" there, so
+   the column is dead weight, doubly so now that Titel needs the room. */
+section[data-family="dotnet_framework"] .history-table .cell-build {
+  display: none;
+}
+
 .muted { color: var(--text-muted); }
 
 .refresh-feedback {
