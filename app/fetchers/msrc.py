@@ -23,20 +23,27 @@ match on (no build number here).
 Known limitation: MSRC only covers *security* updates. Non-security .NET
 Framework rollups are not captured here. It also only lists the fine-grained,
 single-version-branch KBs (e.g. "KB5120705 ... for .NET Framework 3.5 and
-4.8") — the combined "3.5, 4.8 and 4.8.1 in one package" KB Microsoft also
-publishes for the same release is not referenced anywhere in the CVRF
-document (verified against the August 2026 update), so it never appears here
-either. Data quality also depends on Microsoft's CVRF document consistency,
-which has been known to vary — this fetcher is written defensively (per-item
-try/except) so a malformed entry is skipped rather than aborting the whole
-run.
+4.8") directly — the combined "3.5, 4.8 and 4.8.1 in one package" KB
+Microsoft also publishes per OS for the same release isn't in the CVRF
+document itself (verified against the August 2026 update). It IS reliably
+discoverable one hop away though: every granular KB's own support.microsoft.
+com article cross-references it in a real, structurally consistent
+"Additional information about this update" section (verified against several
+real articles) — see _discover_os_bundles, which does that second hop for
+every distinct granular KB this fetcher finds. Data quality also depends on
+Microsoft's CVRF document consistency, which has been known to vary — this
+fetcher is written defensively (per-item try/except) so a malformed entry is
+skipped rather than aborting the whole run.
 """
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 import re
+
+from bs4 import BeautifulSoup
 
 from app.fetchers.base import BaseFetcher, FetchResult, PatchInfo, ProductInfo
 from app.models import ProductFamily
@@ -46,11 +53,16 @@ logger = logging.getLogger("patchwatch.fetchers.msrc")
 UPDATES_URL = "https://api.msrc.microsoft.com/cvrf/v2.0/updates"
 CVRF_URL_TEMPLATE = "https://api.msrc.microsoft.com/cvrf/v2.0/cvrf/{update_id}"
 JSON_HEADERS = {"Accept": "application/json"}
+KB_HELP_URL_TEMPLATE = "https://support.microsoft.com/help/{kb}"
 
 # How many of the most recent monthly documents to walk. .NET Framework
 # releases monthly, so a handful of months is enough to fill in recent history
 # without hammering the API on every refresh.
 MONTHS_TO_SCAN = 6
+# How many granular-KB article pages (see _discover_os_bundles) to fetch at
+# once — same reasoning/value as dotnet.py's MAX_CONCURRENT_REQUESTS: be
+# reasonably fast without hammering the server.
+MAX_CONCURRENT_BUNDLE_REQUESTS = 5
 
 FRAMEWORK_VERSION_RE = re.compile(r"\.NET Framework ([0-9.]+(?:\s*(?:AND|,)\s*[0-9.]+)*)", re.IGNORECASE)
 # .NET (Core) 5+ product names look like ".NET 8.0 installed on Windows" —
@@ -58,6 +70,17 @@ FRAMEWORK_VERSION_RE = re.compile(r"\.NET Framework ([0-9.]+(?:\s*(?:AND|,)\s*[0
 # 2022", no "installed") that a separate, simpler pattern is all this needs.
 DOTNET_CORE_VERSION_RE = re.compile(r"\.NET (\d+\.\d+) installed on", re.IGNORECASE)
 KB_DIGITS_RE = re.compile(r"(\d{6,7})")
+# Matches the link text on a granular KB's "Additional information about this
+# update" list, e.g. "Description of the Cumulative Update for .NET Framework
+# 3.5, 4.8 and 4.8.1 for Windows 10 Version 21H2 (KB5121646)" -> "Windows 10
+# Version 21H2". Anchored on "for .NET Framework ... for <OS> (KB...)" since
+# that phrasing is the one part every one of these list entries shares — the
+# middle ".+?" (not a digits/comma-only class) is deliberate: the version
+# list can read "3.5, 4.8 AND 4.8.1", and being lazy it still stops at the
+# first following " for ", right before the OS name.
+BUNDLE_DESCRIPTION_RE = re.compile(
+    r"Cumulative Update for \.NET Framework .+? for (.+?)\s*\(KB\d+\)\s*$", re.IGNORECASE
+)
 
 FAMILY_BY_PREFIX = {
     "dotnetfx": ProductFamily.DOTNET_FRAMEWORK.value,
@@ -72,6 +95,10 @@ DISPLAY_NAME_BY_PREFIX = {
 def _split_versions(raw: str) -> list[str]:
     parts = re.split(r"\s*(?:AND|,)\s*", raw, flags=re.IGNORECASE)
     return [p.strip() for p in parts if p.strip()]
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 class MsrcDotNetFrameworkFetcher(BaseFetcher):
@@ -93,6 +120,12 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             updates = sorted(updates, key=lambda u: u.get("InitialReleaseDate", ""), reverse=True)[:MONTHS_TO_SCAN]
 
             known_versions: set[tuple[str, str]] = set()
+            # Every distinct granular Framework KB found this run, digits only
+            # ("5120705") -> its release date. Feeds _discover_os_bundles
+            # below, once, after every month's own patches are in — no point
+            # re-fetching a KB's article page per (product, month) when the
+            # same KB can show up for several .NET Framework versions at once.
+            framework_kbs_seen: dict[str, dt.date] = {}
 
             for update in updates:
                 update_id = update.get("ID")
@@ -105,11 +138,14 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                 # real bug here; see _parse_release_date).
                 release_date = self._parse_release_date(update)
                 try:
-                    await self._process_month(client, update_id, release_date, result, known_versions)
+                    await self._process_month(client, update_id, release_date, result, known_versions, framework_kbs_seen)
                 except Exception as exc:  # noqa: BLE001
                     msg = f"msrc: failed to process {update_id}: {exc}"
                     logger.exception(msg)
                     result.errors.append(msg)
+
+            if framework_kbs_seen:
+                await self._discover_os_bundles(client, framework_kbs_seen, result)
         return result
 
     async def _process_month(
@@ -119,6 +155,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         release_date: dt.date | None,
         result: FetchResult,
         known_versions: set[tuple[str, str]],
+        framework_kbs_seen: dict[str, dt.date],
     ) -> None:
         resp = await client.get(CVRF_URL_TEMPLATE.format(update_id=update_id), headers=JSON_HEADERS)
         resp.raise_for_status()
@@ -151,7 +188,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             for remediation in vuln.get("Remediations", []) or []:
                 try:
                     self._handle_remediation(
-                        remediation, products_by_id, release_date, title, result, seen_in_month
+                        remediation, products_by_id, release_date, title, result, seen_in_month, framework_kbs_seen
                     )
                 except Exception:  # noqa: BLE001
                     continue
@@ -204,6 +241,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         title: str | None,
         result: FetchResult,
         seen_in_month: set[tuple[str, str]],
+        framework_kbs_seen: dict[str, dt.date],
     ) -> None:
         if remediation.get("Type") not in ("Vendor Fix", 2, "2"):
             return
@@ -253,6 +291,107 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                     source=self.name,
                 )
             )
+            if release_date:
+                framework_kbs_seen[kb_match.group(1)] = release_date
+
+    async def _discover_os_bundles(
+        self, client, framework_kbs_seen: dict[str, dt.date], result: FetchResult
+    ) -> None:
+        """Fetches every distinct granular Framework KB's own support.
+        microsoft.com article and pulls the per-OS "combined" KB(s) out of
+        its "Additional information about this update" section (see module
+        docstring) — e.g. KB5120705's own page names KB5121650 there. Emits
+        one product per OS ("Windows Server 2022 — .NET Framework (combined)")
+        with that KB as its patch, entirely separate from the per-version
+        dotnetfx-* products the rest of this fetcher produces.
+
+        Best-effort: a single KB's page failing to fetch/parse (Microsoft
+        reshapes the page, a transient error, ...) is skipped rather than
+        added to result.errors — this is a bonus on top of the real,
+        per-version data the rest of the fetcher already got right, not
+        something worth flagging the whole source as broken over.
+        """
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_BUNDLE_REQUESTS)
+        seen_bundle_kbs: set[str] = set()
+
+        async def _handle_one(kb_digits: str, release_date: dt.date) -> None:
+            async with semaphore:
+                try:
+                    resp = await client.get(KB_HELP_URL_TEMPLATE.format(kb=kb_digits))
+                    resp.raise_for_status()
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("msrc: could not fetch KB%s's own article: %s", kb_digits, exc)
+                    return
+
+            try:
+                for bundle_kb, os_name, href in self._parse_bundle_links(resp.text):
+                    if bundle_kb in seen_bundle_kbs:
+                        continue
+                    seen_bundle_kbs.add(bundle_kb)
+                    product_key = f"dotnetfx-os-{_slugify(os_name)}"
+                    result.products.append(
+                        ProductInfo(
+                            key=product_key,
+                            display_name=f"{os_name} — .NET Framework (combined)",
+                            family=ProductFamily.DOTNET_FRAMEWORK.value,
+                            is_ltsc=False,
+                            source_url="https://support.microsoft.com/en-us/servicing/dotnetframework",
+                        )
+                    )
+                    result.patches.append(
+                        PatchInfo(
+                            product_key=product_key,
+                            kb_number=f"KB{bundle_kb}",
+                            build=None,
+                            title=f"Cumulative Update for .NET Framework — {os_name}",
+                            update_type="Security",
+                            release_date=release_date,
+                            severity=None,
+                            kb_url=str(resp.url.join(href)),
+                            source=self.name,
+                        )
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("msrc: could not parse KB%s's article for bundle KBs: %s", kb_digits, exc)
+
+        await asyncio.gather(*(_handle_one(kb, date) for kb, date in framework_kbs_seen.items()))
+
+    @staticmethod
+    def _parse_bundle_links(html: str) -> list[tuple[str, str, str]]:
+        """Parses a granular KB article's "Additional information about this
+        update" list into [(bundle_kb_digits, os_name, href), ...]. Real
+        markup (verified against several live articles):
+
+            <h2 id="additional-information-about-this-update">...</h2>
+            <p>...</p>
+            <ul>
+              <li><a href="../../windows-10/21h2/.../kb5121646-...">5121646</a>
+                  Description of the Cumulative Update for .NET Framework
+                  3.5, 4.8 and 4.8.1 for Windows 10 Version 21H2 (KB5121646)</li>
+              ...
+            </ul>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        heading = soup.find(id="additional-information-about-this-update")
+        if heading is None:
+            return []
+        ul = heading.find_next("ul")
+        if ul is None:
+            return []
+
+        out: list[tuple[str, str, str]] = []
+        for li in ul.find_all("li"):
+            link = li.find("a")
+            if link is None or not link.get("href"):
+                continue
+            m = BUNDLE_DESCRIPTION_RE.search(li.get_text(" ", strip=True))
+            if not m:
+                continue
+            bundle_kb = KB_DIGITS_RE.search(link.get_text(strip=True))
+            if not bundle_kb:
+                continue
+            out.append((bundle_kb.group(1), m.group(1).strip(), link["href"]))
+        return out
 
     @staticmethod
     def _parse_release_date(update: dict) -> dt.date | None:

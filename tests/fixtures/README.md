@@ -50,6 +50,18 @@ All pulled on 2026-08-17, except `sql_server/` (2026-08-18).
   to exercise the fetcher's other product line (.NET Core, not Framework) —
   see the `patch_kb_hints` assertions in test_msrc.py.
 
+- `msrc/kb_pages/kb5120702.html`, `msrc/kb_pages/kb5120703.html` — real
+  `support.microsoft.com/help/{kb}` articles for the two granular Framework
+  KBs `cvrf_2026_aug.json` above carries, trimmed to `<main id=
+  "supMainContent">` (everything the fetcher's `_parse_bundle_links` or a
+  human reads is inside it; the rest is page chrome). Kept as a pair on
+  purpose: KB5120703's "Additional information about this update" section
+  cross-references a real per-OS "combined" KB (KB5121645) — the thing
+  `_discover_os_bundles` exists to find — while KB5120702's page has no such
+  section at all (real behavior: Microsoft doesn't publish a combined
+  variant for that older-OS KB), exercising the "found nothing" path with
+  real data instead of a synthetic empty page.
+
 - `dotnet/releases_index.json` — real `releases-index.json`, trimmed from 14
   channels to 3: `9.0` (in support, has a `releases.json`), `1.0` (long-EOL,
   *also* has a `releases.json` — this is what the "always fetch full

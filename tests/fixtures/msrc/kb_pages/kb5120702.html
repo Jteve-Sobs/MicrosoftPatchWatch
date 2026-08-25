@@ -1,0 +1,99 @@
+<html><body><main class="col col-md-9 mt-4" id="supMainContent" role="main" tabindex="-1">
+<h1 id="august-11-2026-kb5120702-cumulative-update-for-net-framework-48-for-windows-10-version-1607-and-windows-server-2016">August 11, 2026-KB5120702 Cumulative Update for .NET Framework 4.8 for Windows 10, version 1607 and Windows Server 2016</h1>
+<section aria-label="L_AppliesTo_RoleDescription" class="supAppliesToSection" dir="ltr" ms.cmpgrp="applies_to">
+<div id="supAppliesToTableContainer">
+<details id="supAppliesToList"><summary class="contentToggle">Applies To</summary><div role="list"><span class="appliesToItem" role="listitem">.NET</span> </div></details>
+</div>
+</section>
+<div class="learnArticleContent">
+<div class="NOTE">
+<p>Note</p>
+<ul>
+<li>Release Date:<br/>
+<strong>August 11, 2026</strong></li>
+<li>Version:<br/>
+<strong>.NET Framework 4.8</strong></li>
+</ul>
+</div>
+<p>The August 11, 2026 update for Windows 10, version 1607 and Windows Server 2016 includes security and cumulative reliability improvements in .NET Framework 4.8. We recommend that you apply this update as part of your regular maintenance routines. Before you install this update, see the <a data-linktype="self-bookmark" href="#prerequisites">Prerequisites</a> and <a data-linktype="self-bookmark" href="#restart-requirement">Restart requirement</a> sections.</p>
+<p><a id="bkmk_summary"></a></p>
+<h2 id="summary"><strong>Summary</strong></h2>
+<p><strong>Security Improvements</strong></p>
+<p><strong>CVE-2026-65810 - .NET Framework Elevation of Privilege vulnerability</strong><br/>
+This security update addresses an elevation of privilege vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-65810">CVE-2026-65810.</a></p>
+<p><strong>CVE-2026-62872 - .NET Framework Elevation of Privilege vulnerability</strong><br/>
+This security update addresses an elevation of privilege vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-62872">CVE-2026-62872.</a></p>
+<p><strong>CVE-2026-62886 - .NET Framework Remote Code Execution vulnerability</strong><br/>
+This security update addresses a remote code execution vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-62886">CVE-2026-62886.</a></p>
+<p><strong>CVE-2026-62897 - .NET Framework Remote Code Execution vulnerability</strong><br/>
+This security update addresses a remote code execution vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-62897">CVE-2026-62897.</a></p>
+<p><strong>CVE-2026-70354 - .NET Framework Remote Code Execution vulnerability</strong><br/>
+This security update addresses a remote code execution vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-70354">CVE-2026-70354.</a></p>
+<p><strong>CVE-2026-62902 - .NET Framework Information Disclosure vulnerability</strong><br/>
+This security update addresses an information disclosure vulnerability detailed in <a data-linktype="external" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-62902">CVE-2026-62902.</a></p>
+<p><strong>Quality and Reliability Improvements</strong></p>
+<p>There are no new Quality and Reliability Improvements in this update.</p>
+<p><a id="bkmk_knownissue"></a></p>
+<h2 id="known-issues-in-this-update"><strong>Known issues in this update</strong></h2>
+<p><strong>Known Issues:</strong> After installing the August 2026 .NET Framework cumulative update, some WPF applications may fail with a <code>System.IO.FileFormatException</code> when printing or generating PDF/XPS content that uses certain fonts, including Calibri.</p>
+<p><strong>Workaround:</strong> Applications may mitigate the issue by enabling the <code>Switch.MS.Internal.TtfDelta.DisableCmapAndSbitOverflowProtection</code> AppContext switch in the app config file, as shown below.</p>
+<pre><code class="lang-xml">&lt;configuration&gt;
+  &lt;runtime&gt;
+    &lt;AppContextSwitchOverrides
+      value="Switch.MS.Internal.TtfDelta.DisableCmapAndSbitOverflowProtection=true"/&gt;
+  &lt;/runtime&gt;
+&lt;/configuration&gt;
+</code></pre>
+<p>This switch disables security protections introduced in the August 2026 update and may increase exposure to the vulnerabilities addressed by that update. Microsoft recommends using this workaround only as a temporary measure and only when required to address this issue.</p>
+<p><strong>Status:</strong> Investigating.</p>
+<p><a id="bkmk_win10howtoget"></a></p>
+<h2 id="how-to-get-this-update">How to get this update</h2>
+<p><strong>Install this update</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>Release Channel</strong></th>
+<th><strong>Available</strong></th>
+<th><strong>Next Step</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows Update and Microsoft Update</td>
+<td>Yes</td>
+<td>None. This update will be downloaded and installed automatically from Windows Update.</td>
+</tr>
+<tr>
+<td>Windows Update for Business</td>
+<td>Yes</td>
+<td>None. This update will be downloaded and installed automatically from Windows Update.</td>
+</tr>
+<tr>
+<td>Microsoft Update Catalog</td>
+<td>Yes</td>
+<td>To get the standalone package for this update, go to the <a data-linktype="external" href="https://catalog.update.microsoft.com/v7/site/Search.aspx?q=5120702">Microsoft Update Catalog</a> website.</td>
+</tr>
+<tr>
+<td>Windows Server Update Services (WSUS)</td>
+<td>Yes</td>
+<td>This update will automatically sync with WSUS if you configure as follows:<br/><strong>Product</strong>: Windows 10, version 1607 and Windows Server 2016<br/><strong>Classification</strong>: Security Updates</td>
+</tr>
+</tbody>
+</table>
+<p><strong>File information</strong></p>
+<p>For a list of the files that are provided in this update, download the <a data-linktype="external" href="https://download.microsoft.com/download/481e3b63-3d5c-4ee0-9187-c17a69b64d84/5120702.csv">file information for cumulative update</a>.</p>
+<p><a id="bkmk_prereq"></a></p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>To apply this update, you must have .NET Framework 4.8 installed.</p>
+<p><a id="bkmk_restart"></a></p>
+<h2 id="restart-requirement">Restart requirement</h2>
+<p>You must restart the computer after you apply this update if any affected files are being used. We recommend that you exit all .NET Framework-based applications before you apply this update.</p>
+<p><a id="bkmk_howtoobtain"></a></p>
+<h2 id="how-to-obtain-help-and-support-for-this-update">How to obtain help and support for this update</h2>
+<ul>
+<li>Help for installing updates: <a data-linktype="absolute-path" href="/en-us/help/12373/windows-update-faq">Windows Update FAQ</a></li>
+<li>Protect yourself online and at home: <a data-linktype="absolute-path" href="/en-us/hub/4099151/windows-security-help">Windows Security support</a></li>
+<li>Local support according to your country/region: <a data-linktype="absolute-path" href="/en-us/">International Support</a></li>
+</ul>
+</div>
+</main></body></html>
