@@ -57,16 +57,19 @@
   </main>
 
   <footer class="wrap footer">
-    {{ t('footer.sources') }}:
-    <a href="https://learn.microsoft.com/en-us/windows/release-health/" target="_blank" rel="noopener">Windows Release Health (Microsoft Learn)</a>
-    ·
-    <a href="https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates" target="_blank" rel="noopener">SQL Server build versions (Microsoft Learn)</a>
-    ·
-    <a href="https://msrc.microsoft.com/update-guide" target="_blank" rel="noopener">MSRC Security Update API</a>
-    ·
-    <a href="https://github.com/dotnet/core/tree/main/release-notes" target="_blank" rel="noopener">dotnet/core Releases</a>.
-    {{ t('footer.disclaimer') }}
-    · <a href="/admin">{{ t('nav.admin') }}</a>
+    <div class="footer-sources">
+      {{ t('footer.sources') }}:
+      <a href="https://learn.microsoft.com/en-us/windows/release-health/" target="_blank" rel="noopener">Windows Release Health (Microsoft Learn)</a>
+      ·
+      <a href="https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates" target="_blank" rel="noopener">SQL Server build versions (Microsoft Learn)</a>
+      ·
+      <a href="https://msrc.microsoft.com/update-guide" target="_blank" rel="noopener">MSRC Security Update API</a>
+      ·
+      <a href="https://github.com/dotnet/core/tree/main/release-notes" target="_blank" rel="noopener">dotnet/core Releases</a>
+    </div>
+    <div class="footer-meta">{{ t('footer.disclaimer') }}</div>
+    <div class="footer-admin"><a href="/admin">{{ t('nav.admin') }}</a></div>
+    <div class="footer-credit">Made with 🫶 · <a href="https://github.com/Jteve-Sobs/MicrosoftPatchWatch" target="_blank" rel="noopener">GitHub</a></div>
   </footer>
 
   <!-- Fires once per page load: kicks off a debounced background refresh. -->

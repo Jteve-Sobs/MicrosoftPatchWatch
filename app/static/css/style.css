@@ -446,3 +446,12 @@ section[data-family="dotnet_framework"] .history-table .cell-build {
   font-size: 0.8rem;
   text-align: center;
 }
+/* Three visually distinct rows instead of one long run-on line: sources
+   (its own topic), then the disclaimer + admin link (page meta), then the
+   credit line last, each a little further apart / a little more faded than
+   the one above so the hierarchy (content > meta > credit) reads at a
+   glance instead of all competing at once. */
+.footer-sources { line-height: 1.6; }
+.footer-meta { margin-top: 10px; }
+.footer-admin { margin-top: 6px; }
+.footer-credit { margin-top: 14px; opacity: 0.7; }

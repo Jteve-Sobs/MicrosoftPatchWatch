@@ -257,15 +257,19 @@ pytest
 
 ```
 app/
-  fetchers/            # one file per data source
-  routers/             # web.py (HTML/HTMX), api.py (JSON)
+  fetchers/             # one file per data source
+  routers/              # web.py (HTML/HTMX), api.py (JSON)
   templates/            # Jinja2 + HTMX partials
-  static/                # CSS/JS
-  models.py               # SQLAlchemy: Product, Patch, FetchRun
-  refresh_service.py       # orchestration + upsert logic
-  scheduler.py               # APScheduler job
-  main.py                     # FastAPI app + lifespan
+  static/               # CSS/JS
+  models.py             # SQLAlchemy: Product, Patch, FetchRun
+  refresh_service.py    # orchestration + upsert logic
+  scheduler.py          # APScheduler job
+  main.py               # FastAPI app + lifespan
 tests/
-  fixtures/                    # frozen, real HTML/JSON per source
-  test_*.py                     # one test module per fetcher
+  fixtures/             # frozen, real HTML/JSON per source
+  test_*.py             # one test module per fetcher
 ```
+
+---
+
+Made with 🫶 by [Jteve-Sobs](https://github.com/Jteve-Sobs)
