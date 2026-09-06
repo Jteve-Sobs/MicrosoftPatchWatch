@@ -494,6 +494,7 @@ async function patchwatchExportJson(scope) {
       await navigator.clipboard.writeText(json);
       patchwatchShowExportFeedback(i18n.exportCopied || "", false);
     } else {
+      console.log("patchwatch export: navigator.clipboard not available, falling back to file download");
       patchwatchDownloadJson(json, scope, excludePreview);
       patchwatchShowExportFeedback(i18n.exportDownloaded || "", false);
     }
