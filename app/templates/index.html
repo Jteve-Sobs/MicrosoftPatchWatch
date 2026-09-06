@@ -20,7 +20,11 @@
         </button>
         <div id="export-menu" class="dropdown-menu" hidden role="menu">
           <p class="dropdown-hint">{{ t('export.hint') }}</p>
-          <button type="button" role="menuitem" onclick="patchwatchExportJson('month')">{{ t('btn.export_month') }}</button>
+          <label class="dropdown-checkbox">
+            <input type="checkbox" id="export-exclude-preview">
+            {{ t('export.exclude_preview') }}
+          </label>
+          <button type="button" role="menuitem" onclick="patchwatchExportJson('latest')">{{ t('btn.export_latest') }}</button>
           <button type="button" role="menuitem" onclick="patchwatchExportJson('all')">{{ t('btn.export_all') }}</button>
         </div>
       </div>

@@ -128,13 +128,18 @@ async def _load_dashboard_data():
         return grouped, last_run
 
 
-async def _build_export_data(scope: str) -> dict:
-    """scope="month" limits to patches released in the current calendar month
-    (across all products); scope="all" is the full history. Products with no
-    matching patches are omitted entirely — keeps a "month" export from
-    listing every product just to say nothing happened for most of them."""
-    today = dt.date.today()
+async def _build_export_data(scope: str, exclude_preview: bool = False) -> dict:
+    """scope="latest" limits each product to the patch(es) from its own most
+    recent release date — not "released in the current calendar month",
+    which went blank for a product whenever its last patch happened to land
+    in a previous month (e.g. checking in early September for something that
+    shipped in August). scope="all" is the full history. Products with no
+    matching patches are omitted entirely — keeps a "latest" export from
+    listing every product just to say nothing happened for most of them.
 
+    exclude_preview drops patches with update_type == "Preview" before the
+    scope filter runs, so a "latest" export skips straight to the newest
+    non-preview patch instead of surfacing a preview build."""
     async with async_session_factory() as session:
         products = (
             await session.execute(select(Product).order_by(Product.family, Product.display_name))
@@ -152,12 +157,13 @@ async def _build_export_data(scope: str) -> dict:
     products_out = []
     for product in products:
         product_patches = patches_by_product.get(product.id, [])
-        if scope == "month":
-            product_patches = [
-                p
-                for p in product_patches
-                if p.release_date and p.release_date.year == today.year and p.release_date.month == today.month
-            ]
+        if exclude_preview:
+            product_patches = [p for p in product_patches if p.update_type != "Preview"]
+        if scope == "latest":
+            latest_date = max((p.release_date for p in product_patches if p.release_date), default=None)
+            product_patches = (
+                [p for p in product_patches if p.release_date == latest_date] if latest_date else []
+            )
         if not product_patches:
             continue
 
@@ -186,15 +192,16 @@ async def _build_export_data(scope: str) -> dict:
     return {
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "scope": scope,
+        "exclude_preview": exclude_preview,
         "products": products_out,
     }
 
 
 @router.get("/export/json")
-async def export_json(scope: str = "all"):
-    if scope not in ("all", "month"):
+async def export_json(scope: str = "all", exclude_preview: bool = False):
+    if scope not in ("all", "latest"):
         scope = "all"
-    return await _build_export_data(scope)
+    return await _build_export_data(scope, exclude_preview)
 
 
 @router.get("/", response_class=HTMLResponse)

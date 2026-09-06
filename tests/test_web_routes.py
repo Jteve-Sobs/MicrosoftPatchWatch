@@ -91,42 +91,75 @@ async def test_export_json_all_scope_includes_full_history(client, make_product,
     assert kbs == {"KB_OLD", "KB_NEW"}
 
 
-async def test_export_json_month_scope_filters_to_current_month(client, make_product, make_patch):
+async def test_export_json_latest_scope_keeps_only_each_products_newest_release_date(
+    client, make_product, make_patch
+):
+    """Regression test: this used to be a "current calendar month" filter, so
+    a product whose newest patch shipped last month vanished from the export
+    entirely just because "now" had rolled into a new month. "latest" instead
+    tracks each product's own most recent release date, whenever that was."""
     today = dt.date.today()
     last_month = (today.replace(day=1) - dt.timedelta(days=1))
     await _seed(
         make_product,
         make_patch,
         patches=[
-            {"kb_number": "KB_THIS_MONTH", "release_date": today},
-            {"kb_number": "KB_LAST_MONTH", "release_date": last_month},
+            {"kb_number": "KB_NEWEST", "release_date": last_month},
+            {"kb_number": "KB_OLDER", "release_date": dt.date(2020, 1, 1)},
         ],
     )
 
-    resp = await client.get("/export/json", params={"scope": "month"})
+    resp = await client.get("/export/json", params={"scope": "latest"})
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["scope"] == "month"
+    assert data["scope"] == "latest"
     assert len(data["products"]) == 1
     kbs = {p["kb"] for p in data["products"][0]["patches"]}
-    assert kbs == {"KB_THIS_MONTH"}
+    assert kbs == {"KB_NEWEST"}
 
 
-async def test_export_json_month_scope_omits_products_with_no_match_this_month(
-    client, make_product, make_patch
-):
-    async with async_session_factory() as session:
-        product = make_product("dotnet-8", display_name=".NET 8.0", family="dotnet")
-        session.add(product)
-        await session.flush()
-        session.add(make_patch(product.id, kb_number="", build="8.0.1", release_date=dt.date(2020, 1, 1)))
-        await session.commit()
+async def test_export_json_exclude_preview_drops_preview_patches(client, make_product, make_patch):
+    await _seed(
+        make_product,
+        make_patch,
+        patches=[
+            {"kb_number": "KB_SECURITY", "release_date": dt.date(2026, 8, 1), "update_type": "Security"},
+            {"kb_number": "KB_PREVIEW", "release_date": dt.date(2026, 8, 15), "update_type": "Preview"},
+        ],
+    )
 
-    resp = await client.get("/export/json", params={"scope": "month"})
+    resp = await client.get("/export/json", params={"scope": "all", "exclude_preview": "true"})
 
     assert resp.status_code == 200
-    assert resp.json()["products"] == []
+    data = resp.json()
+    assert data["exclude_preview"] is True
+    kbs = {p["kb"] for p in data["products"][0]["patches"]}
+    assert kbs == {"KB_SECURITY"}
+
+
+async def test_export_json_latest_scope_with_exclude_preview_skips_newer_preview_patch(
+    client, make_product, make_patch
+):
+    """The newest patch overall is a preview build; with exclude_preview the
+    "latest" one reported should be the newest *non-preview* patch instead,
+    not an empty result."""
+    await _seed(
+        make_product,
+        make_patch,
+        patches=[
+            {"kb_number": "KB_SECURITY", "release_date": dt.date(2026, 8, 1), "update_type": "Security"},
+            {"kb_number": "KB_PREVIEW", "release_date": dt.date(2026, 8, 15), "update_type": "Preview"},
+        ],
+    )
+
+    resp = await client.get(
+        "/export/json", params={"scope": "latest", "exclude_preview": "true"}
+    )
+
+    assert resp.status_code == 200
+    kbs = {p["kb"] for p in resp.json()["products"][0]["patches"]}
+    assert kbs == {"KB_SECURITY"}
 
 
 async def test_export_json_unknown_scope_falls_back_to_all(client, make_product, make_patch):

@@ -459,6 +459,10 @@ document.body.addEventListener("htmx:afterRequest", (evt) => {
 // what was asked for, and it also sidesteps the fact that artifact-style
 // sandboxes can block a plain download link anyway. Re-stringified with
 // indentation client-side since FastAPI's default JSONResponse is compact.
+// Falls back to an actual file download (patchwatchDownloadJson) when
+// navigator.clipboard isn't available at all — e.g. the app was reached
+// over plain HTTP via something other than localhost, which browsers don't
+// treat as a secure context.
 function patchwatchToggleExportMenu() {
   const menu = document.getElementById("export-menu");
   const toggle = document.getElementById("export-toggle");
@@ -472,15 +476,45 @@ function patchwatchToggleExportMenu() {
 async function patchwatchExportJson(scope) {
   patchwatchCloseDropdowns();
   const i18n = window.PATCHWATCH_I18N || {};
+  const excludePreviewEl = document.getElementById("export-exclude-preview");
+  const excludePreview = !!(excludePreviewEl && excludePreviewEl.checked);
   try {
-    const response = await fetch(`/export/json?scope=${encodeURIComponent(scope)}`);
+    const params = new URLSearchParams({ scope });
+    if (excludePreview) params.set("exclude_preview", "true");
+    const response = await fetch(`/export/json?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    patchwatchShowExportFeedback(i18n.exportCopied || "", false);
-  } catch {
+    const json = JSON.stringify(data, null, 2);
+
+    // navigator.clipboard only exists in a "secure context" — https://, or
+    // http://localhost — so visiting the app via any other hostname/IP over
+    // plain HTTP leaves it undefined. Fall back to a plain file download in
+    // that case instead of failing outright.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(json);
+      patchwatchShowExportFeedback(i18n.exportCopied || "", false);
+    } else {
+      patchwatchDownloadJson(json, scope, excludePreview);
+      patchwatchShowExportFeedback(i18n.exportDownloaded || "", false);
+    }
+  } catch (err) {
+    console.error("patchwatch export failed:", err);
     patchwatchShowExportFeedback(i18n.exportFailed || "", true);
   }
+}
+
+function patchwatchDownloadJson(json, scope, excludePreview) {
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  const suffix = excludePreview ? "-no-preview" : "";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `patchwatch-export-${scope}${suffix}-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Shows the result right on the export button itself (icon + color + label

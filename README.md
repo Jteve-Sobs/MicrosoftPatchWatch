@@ -134,10 +134,14 @@ e.g. via `rclone` or `restic`.
 - `GET /api/products` — list of every detected product/version
 - `GET /api/products/{key}/patches` — full history of one product
 - `POST /refresh` — trigger a manual refresh (debounced)
-- `GET /export/json?scope=all|month` — every patch (or just the current
-  calendar month's) as JSON, grouped by product. Reachable from the
-  dashboard via the "Export all" / "Export current month" buttons, which
-  copy the result straight to the clipboard instead of downloading it.
+- `GET /export/json?scope=all|latest&exclude_preview=true|false` — every
+  patch, or just each product's latest release date, as JSON, grouped by
+  product. `exclude_preview` drops "Preview" update-type patches before the
+  scope filter runs. Reachable from the dashboard via the "Entire history" /
+  "Latest state" buttons and an "Exclude preview updates" checkbox, which
+  copy the result straight to the clipboard — falling back to a file
+  download if the clipboard API isn't available (e.g. the app is reached
+  over plain HTTP via something other than `localhost`).
 
 ## Admin area
 

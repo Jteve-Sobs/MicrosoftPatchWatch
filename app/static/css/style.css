@@ -208,6 +208,17 @@ body {
   color: var(--text-muted);
 }
 
+.dropdown-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 6px;
+  padding: 2px 6px;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
 .dropdown-menu button[role="menuitem"] {
   display: block;
   width: 100%;
