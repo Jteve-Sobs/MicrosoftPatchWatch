@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+import httpx
+
 from app.fetchers.msrc import CVRF_URL_TEMPLATE, KB_HELP_URL_TEMPLATE, UPDATES_URL, MsrcDotNetFrameworkFetcher
 from tests.conftest import load_fixture
 
@@ -250,6 +252,17 @@ def test_parse_url_date_extracts_date_from_article_url():
     ) == dt.date(2026, 8, 11)
 
 
+def test_parse_url_date_extracts_date_from_rollup_slug_without_a_kb_number():
+    """Regression guard for the real KB5126045 case: "Security and Quality
+    Rollup" articles (older .NET Framework versions) never put the KB number
+    in the slug at all, unlike "Cumulative Update" articles — the date must
+    still be found from the slug's leading month-day-year alone."""
+    assert MsrcDotNetFrameworkFetcher._parse_url_date(
+        "https://support.microsoft.com/en-us/servicing/dotnetframework/2026/09/"
+        "september-8-2026-security-and-quality-rollup-for-net-framework-4-6-2-4-7-4-7-1-4-7-2-for-windows-ser-1"
+    ) == dt.date(2026, 9, 8)
+
+
 def test_parse_url_date_returns_none_without_a_recognizable_slug():
     assert MsrcDotNetFrameworkFetcher._parse_url_date("https://support.microsoft.com/help/5120703") is None
     assert MsrcDotNetFrameworkFetcher._parse_url_date("https://support.microsoft.com/a") is None
@@ -283,3 +296,42 @@ async def test_bundle_kb_release_date_comes_from_its_own_article_url_not_the_gra
     # Sanity check: the granular KB it was found through is still on its own
     # (correct, unrelated) August date.
     assert next(p for p in result.patches if p.kb_number == "KB5120703").release_date == dt.date(2026, 8, 11)
+
+
+async def test_granular_kb_release_date_comes_from_its_own_article_url_when_reissued(mock_fetch):
+    """Regression guard for the real KB5126422 case: CVRF's August document
+    carried it with InitialReleaseDate 2026-08-11, but Microsoft later
+    redated the KB itself — support.microsoft.com/help/5120703 (standing in
+    for 5126422 here) now redirects to a canonical article dated 2026-09-08
+    in its own slug. The stale CVRF month must not win over the KB's own,
+    newer article."""
+    dest_url = (
+        "https://support.microsoft.com/en-us/servicing/dotnetframework/2026/09/"
+        "september-8-2026-kb5120703-cumulative-update-for-net-framework-3-5-and-4-8-for-windows-server-2022"
+    )
+    kb5120703_page = load_fixture("msrc", "kb_pages", "kb5120703.html")
+    base_routes = _routes()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = str(request.url)
+        if key == KB_HELP_URL_TEMPLATE.format(kb="5120703"):
+            return httpx.Response(301, headers={"Location": dest_url})
+        if key == dest_url:
+            return httpx.Response(200, text=kb5120703_page)
+        if key not in base_routes:
+            return httpx.Response(404, text=f"unmapped URL in test: {key}")
+        status, body = base_routes[key]
+        return httpx.Response(status, text=body)
+
+    mock_fetch(handler)
+    result = await MsrcDotNetFrameworkFetcher().fetch()
+
+    patch = next(p for p in result.patches if p.kb_number == "KB5120703")
+    assert patch.release_date == dt.date(2026, 9, 8)
+    assert patch.kb_url == dest_url
+    # The month/year prefix is corrected in place, the OS name still gets
+    # appended as usual.
+    assert patch.title == "September 2026 Security Updates — Windows 10, version 1809 and Windows Server 2019"
+    # Sanity check: the other granular KB, whose article wasn't redated,
+    # keeps CVRF's August date untouched.
+    assert next(p for p in result.patches if p.kb_number == "KB5120702").release_date == dt.date(2026, 8, 11)

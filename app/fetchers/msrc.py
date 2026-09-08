@@ -87,16 +87,32 @@ KB_DIGITS_RE = re.compile(r"(\d{6,7})")
 # optional since only some phrasings put it there.
 KB_ARTICLE_OS_NAME_RE = re.compile(r"\.NET Framework .+? for (.+?)(?:\s*\(KB\d+\))?\s*$", re.IGNORECASE)
 # support.microsoft.com .NET Framework article URLs reliably embed their own
-# release date in the slug, right before the KB number, e.g.
+# release date at the start of the slug, e.g.
 # ".../2026/09/september-8-2026-kb5126149-cumulative-update-for-..." ->
 # September 8, 2026 (verified against several live articles). Used to get a
-# bundle KB's real date straight from its own URL instead of inheriting
-# whichever granular KB's page we happened to find the link on.
-BUNDLE_URL_DATE_RE = re.compile(
+# KB's real date straight from its own URL instead of trusting a possibly
+# stale date inherited from elsewhere (a bundle KB found via a granular KB's
+# page — see bundle_date below — or a granular KB's own CVRF release_date,
+# see own_date below).
+#
+# Deliberately NOT anchored on "-kb\d+" following the date: that holds for
+# "Cumulative Update" articles (KB5126422's slug is
+# "...september-8-2026-kb5126422-cumulative-update-for-..."), but "Security
+# and Quality Rollup" articles (older .NET Framework versions, e.g. real
+# KB5126045) never put the KB number in the slug at all — its slug is
+# "...september-8-2026-security-and-quality-rollup-for-net-framework-...-1"
+# (verified live). The date always leads the slug either way, so matching
+# just that prefix covers both phrasings.
+ARTICLE_URL_DATE_RE = re.compile(
     r"/(january|february|march|april|may|june|july|august|september|october|november|december)"
-    r"-(\d{1,2})-(\d{4})-kb\d+",
+    r"-(\d{1,2})-(\d{4})-",
     re.IGNORECASE,
 )
+# Matches the leading "<Month> <Year>" of a granular KB's per-month title
+# ("August 2026 Security Updates") so it can be swapped for the corrected
+# month/year when the KB's own article date overrides the CVRF one (see
+# _discover_os_bundles's own_date handling).
+MONTH_YEAR_TITLE_RE = re.compile(r"^[A-Za-z]+ \d{4}(?= Security Updates\b)")
 
 FAMILY_BY_PREFIX = {
     "dotnetfx": ProductFamily.DOTNET_FRAMEWORK.value,
@@ -348,9 +364,23 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
             try:
                 resolved_url = str(resp.url)
                 own_os_name = self._parse_article_os_name(resp.text)
+                # Same reissue problem _discover_os_bundles already handles
+                # for bundle KBs (see bundle_date below) can hit a granular
+                # KB directly: its CVRF release_date is normally right, but
+                # Microsoft has been observed to redate a KB's own article
+                # without a new CVRF entry (verified: real KB5126422, CVRF
+                # said 2026-08-11, its own article says 2026-09-08). The
+                # article's own URL is ground truth when the two disagree.
+                own_date = self._parse_url_date(resolved_url)
                 for patch in result.patches:
                     if patch.source == self.name and patch.kb_number == f"KB{kb_digits}":
                         patch.kb_url = resolved_url
+                        if own_date and own_date != patch.release_date:
+                            if patch.title:
+                                patch.title = MONTH_YEAR_TITLE_RE.sub(
+                                    own_date.strftime("%B %Y"), patch.title, count=1
+                                )
+                            patch.release_date = own_date
                         # The per-month title ("August 2026 Security Updates")
                         # is identical on every row for that month regardless
                         # of version or OS — on its own, not enough to tell
@@ -421,11 +451,12 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
 
     @staticmethod
     def _parse_url_date(url: str) -> dt.date | None:
-        """Extracts a bundle KB's own release date from its article URL, see
-        BUNDLE_URL_DATE_RE. Returns None (letting the caller fall back to the
-        granular KB's CVRF date) if the URL doesn't match — e.g. Microsoft
-        reshapes the slug, or resp.url ended up somewhere unexpected."""
-        m = BUNDLE_URL_DATE_RE.search(url)
+        """Extracts a KB's own release date from its article URL, see
+        ARTICLE_URL_DATE_RE. Returns None (letting the caller fall back to
+        whatever date it already had) if the URL doesn't match — e.g.
+        Microsoft reshapes the slug, or resp.url ended up somewhere
+        unexpected."""
+        m = ARTICLE_URL_DATE_RE.search(url)
         if not m:
             return None
         month_name, day, year = m.groups()

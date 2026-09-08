@@ -66,7 +66,11 @@ def mock_fetch(monkeypatch):
         transport = httpx.MockTransport(handler)
 
         def fake_make_client() -> httpx.AsyncClient:
-            return httpx.AsyncClient(transport=transport)
+            # follow_redirects=True matches the real client (see
+            # BaseFetcher.make_client) — needed so a mocked 30x response
+            # (e.g. simulating support.microsoft.com/help/{kb} redirecting
+            # to its canonical dated slug) actually changes response.url.
+            return httpx.AsyncClient(transport=transport, follow_redirects=True)
 
         # Patched on BaseFetcher itself (a @staticmethod), so it takes effect
         # for whichever fetcher subclass the test instantiates.
