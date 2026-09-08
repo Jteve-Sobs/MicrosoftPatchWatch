@@ -387,12 +387,26 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                             source_url="https://support.microsoft.com/en-us/servicing/dotnetframework",
                         )
                     )
+                    # Match the granular KBs' title shape ("August 2026
+                    # Security Updates — <OS>", see the own_os_name append
+                    # above) using bundle_date's own month — not
+                    # release_date's, which can be a different, earlier
+                    # month than the bundle KB actually shipped in (that's
+                    # the whole reason bundle_date prefers the URL date).
+                    # Falls back to the old month-less phrasing only on the
+                    # rare page whose URL didn't parse and release_date is
+                    # also unset.
+                    bundle_title = (
+                        f"{bundle_date.strftime('%B %Y')} Security Updates — {bundle_os_name}"
+                        if bundle_date
+                        else f"Cumulative Update for .NET Framework — {bundle_os_name}"
+                    )
                     result.patches.append(
                         PatchInfo(
                             product_key=product_key,
                             kb_number=f"KB{bundle_kb}",
                             build=None,
-                            title=f"Cumulative Update for .NET Framework — {bundle_os_name}",
+                            title=bundle_title,
                             update_type="Security",
                             release_date=bundle_date,
                             severity=None,

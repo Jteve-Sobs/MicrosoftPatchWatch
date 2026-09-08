@@ -276,6 +276,10 @@ async def test_bundle_kb_release_date_comes_from_its_own_article_url_not_the_gra
     bundle_patches = [p for p in result.patches if p.kb_number == "KB5126149"]
     assert len(bundle_patches) == 1
     assert bundle_patches[0].release_date == dt.date(2026, 9, 8)
+    # The title's month must follow suit too — "August 2026" here (taken
+    # from the granular KB's DocumentTitle, or from a stale release_date)
+    # would be just as wrong as the release_date bug this guards against.
+    assert bundle_patches[0].title == "September 2026 Security Updates — Windows Server 2022"
     # Sanity check: the granular KB it was found through is still on its own
     # (correct, unrelated) August date.
     assert next(p for p in result.patches if p.kb_number == "KB5120703").release_date == dt.date(2026, 8, 11)
