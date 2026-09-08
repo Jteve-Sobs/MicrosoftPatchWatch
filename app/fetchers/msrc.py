@@ -86,6 +86,17 @@ KB_DIGITS_RE = re.compile(r"(\d{6,7})")
 # following " for ", right before the OS name. The trailing "(KB...)" is
 # optional since only some phrasings put it there.
 KB_ARTICLE_OS_NAME_RE = re.compile(r"\.NET Framework .+? for (.+?)(?:\s*\(KB\d+\))?\s*$", re.IGNORECASE)
+# support.microsoft.com .NET Framework article URLs reliably embed their own
+# release date in the slug, right before the KB number, e.g.
+# ".../2026/09/september-8-2026-kb5126149-cumulative-update-for-..." ->
+# September 8, 2026 (verified against several live articles). Used to get a
+# bundle KB's real date straight from its own URL instead of inheriting
+# whichever granular KB's page we happened to find the link on.
+BUNDLE_URL_DATE_RE = re.compile(
+    r"/(january|february|march|april|may|june|july|august|september|october|november|december)"
+    r"-(\d{1,2})-(\d{4})-kb\d+",
+    re.IGNORECASE,
+)
 
 FAMILY_BY_PREFIX = {
     "dotnetfx": ProductFamily.DOTNET_FRAMEWORK.value,
@@ -353,6 +364,19 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                     if bundle_kb in seen_bundle_kbs:
                         continue
                     seen_bundle_kbs.add(bundle_kb)
+                    bundle_url = str(resp.url.join(href))
+                    # The bundle KB isn't in the CVRF feed, so it has no
+                    # release date of its own to fall back on there. Prefer
+                    # the date embedded in its own article URL (e.g.
+                    # ".../2026/09/september-8-2026-kb5126149-...") over the
+                    # granular KB's CVRF release_date we were passed — that
+                    # granular KB may not have been reissued this cycle at
+                    # all, in which case its date is a month or more stale
+                    # even though its article already links forward to this
+                    # month's bundle KB (verified: KB5126149, found via a
+                    # granular KB still dated 2026-08-11, is itself dated
+                    # 2026-09-08 in its own URL).
+                    bundle_date = self._parse_url_date(bundle_url) or release_date
                     product_key = f"dotnetfx-os-{_slugify(bundle_os_name)}"
                     result.products.append(
                         ProductInfo(
@@ -370,9 +394,9 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                             build=None,
                             title=f"Cumulative Update for .NET Framework — {bundle_os_name}",
                             update_type="Security",
-                            release_date=release_date,
+                            release_date=bundle_date,
                             severity=None,
-                            kb_url=str(resp.url.join(href)),
+                            kb_url=bundle_url,
                             source=self.name,
                         )
                     )
@@ -380,6 +404,21 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                 logger.debug("msrc: could not parse KB%s's article: %s", kb_digits, exc)
 
         await asyncio.gather(*(_handle_one(kb, date) for kb, date in framework_kbs_seen.items()))
+
+    @staticmethod
+    def _parse_url_date(url: str) -> dt.date | None:
+        """Extracts a bundle KB's own release date from its article URL, see
+        BUNDLE_URL_DATE_RE. Returns None (letting the caller fall back to the
+        granular KB's CVRF date) if the URL doesn't match — e.g. Microsoft
+        reshapes the slug, or resp.url ended up somewhere unexpected."""
+        m = BUNDLE_URL_DATE_RE.search(url)
+        if not m:
+            return None
+        month_name, day, year = m.groups()
+        try:
+            return dt.datetime.strptime(f"{month_name} {day} {year}", "%B %d %Y").date()
+        except ValueError:
+            return None
 
     @staticmethod
     def _parse_article_os_name(html: str) -> str | None:

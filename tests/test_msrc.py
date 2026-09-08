@@ -234,3 +234,48 @@ def test_parse_article_os_name_security_and_quality_rollup_phrasing():
 
 def test_parse_article_os_name_returns_none_without_an_h1():
     assert MsrcDotNetFrameworkFetcher._parse_article_os_name("<html><body><p>no heading here</p></body></html>") is None
+
+
+def test_parse_url_date_extracts_date_from_article_url():
+    """The date embedded in a support.microsoft.com article slug is the
+    bundle KB's own release date — verified against real KB5126149
+    (September 8, 2026) and KB5120705 (August 11, 2026) article URLs."""
+    assert MsrcDotNetFrameworkFetcher._parse_url_date(
+        "https://support.microsoft.com/en-us/servicing/dotnetframework/microsoft-server/2022/2026/09/"
+        "september-8-2026-kb5126149-cumulative-update-for-net-framework-3-5-4-8-and-4-8-1-for-windows-server"
+    ) == dt.date(2026, 9, 8)
+    assert MsrcDotNetFrameworkFetcher._parse_url_date(
+        "https://support.microsoft.com/en-us/servicing/dotnetframework/2026/08/"
+        "august-11-2026-kb5120705-cumulative-update-for-net-framework-3-5-and-4-8-for-windows-server-2022"
+    ) == dt.date(2026, 8, 11)
+
+
+def test_parse_url_date_returns_none_without_a_recognizable_slug():
+    assert MsrcDotNetFrameworkFetcher._parse_url_date("https://support.microsoft.com/help/5120703") is None
+    assert MsrcDotNetFrameworkFetcher._parse_url_date("https://support.microsoft.com/a") is None
+
+
+async def test_bundle_kb_release_date_comes_from_its_own_article_url_not_the_granular_kbs(mock_fetch):
+    """Regression guard for the real KB5126149 case: it was discovered via a
+    granular KB whose CVRF release_date was still 2026-08-11 (not reissued
+    that month), but KB5126149's own article URL says 2026-09-08 — the date
+    actually shown to users must be the bundle KB's real date, not the stale
+    date of whichever granular KB's page happened to link to it."""
+    bundle_page = """
+    <h2 id="additional-information-about-this-update">Additional information about this update</h2>
+    <ul>
+      <li><a href="https://support.microsoft.com/en-us/servicing/dotnetframework/microsoft-server/2022/2026/09/september-8-2026-kb5126149-cumulative-update-for-net-framework-3-5-4-8-and-4-8-1-for-windows-server">5126149</a> Description of the Cumulative Update for .NET Framework 3.5, 4.8 and 4.8.1 for Windows Server 2022 (KB5126149)</li>
+    </ul>
+    """
+    routes = _routes()
+    routes[KB_HELP_URL_TEMPLATE.format(kb="5120703")] = (200, bundle_page)
+    mock_fetch(routes)
+
+    result = await MsrcDotNetFrameworkFetcher().fetch()
+
+    bundle_patches = [p for p in result.patches if p.kb_number == "KB5126149"]
+    assert len(bundle_patches) == 1
+    assert bundle_patches[0].release_date == dt.date(2026, 9, 8)
+    # Sanity check: the granular KB it was found through is still on its own
+    # (correct, unrelated) August date.
+    assert next(p for p in result.patches if p.kb_number == "KB5120703").release_date == dt.date(2026, 8, 11)
