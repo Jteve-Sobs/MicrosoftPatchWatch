@@ -83,8 +83,11 @@ async def _load_dashboard_data():
             if existing is None or p.last_seen_at > existing.last_seen_at:
                 latest_by_product[p.product_id] = p
 
+        # id, not started_at — see the identical status_partial query below
+        # for why: started_at is only as trustworthy as the system clock was
+        # at that moment, id always increases regardless.
         last_run = (
-            await session.execute(select(FetchRun).order_by(FetchRun.started_at.desc()).limit(1))
+            await session.execute(select(FetchRun).order_by(FetchRun.id.desc()).limit(1))
         ).scalar_one_or_none()
 
         # The client-side filter box used to only match a product's name and
@@ -232,8 +235,19 @@ async def set_language(code: str, request: Request):
 @router.get("/partials/status", response_class=HTMLResponse)
 async def status_partial(request: Request, locale: str = Depends(resolve_locale)):
     async with async_session_factory() as session:
+        # Ordered by id, not started_at: id is a monotonic serial, immune to
+        # a wrong system clock. started_at comes from datetime.now() at the
+        # time the run kicked off — a single bad clock reading (RTC/NTP
+        # glitch, e.g. a run that briefly saw the system clock at some
+        # far-future date) sets a started_at no real timestamp can ever
+        # exceed again, so that one poisoned run would win this ordering
+        # forever and permanently mask every real run since (verified: a
+        # real run's started_at landed on 2036-02-02 during a clock glitch,
+        # its TLS fetches failed with CERTIFICATE_VERIFY_FAILED because every
+        # real cert looked expired from 2036, and it kept "winning" over
+        # dozens of later successful runs).
         last_run = (
-            await session.execute(select(FetchRun).order_by(FetchRun.started_at.desc()).limit(1))
+            await session.execute(select(FetchRun).order_by(FetchRun.id.desc()).limit(1))
         ).scalar_one_or_none()
     running = is_refresh_running()
     response = templates.TemplateResponse(

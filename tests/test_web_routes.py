@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 
 from app.database import async_session_factory
+from app.models import FetchRun
 
 
 async def _seed(make_product, make_patch, *, product_overrides=None, patches=()):
@@ -193,3 +194,47 @@ async def test_lang_switch_unsupported_code_falls_back_to_default(client):
     resp = await client.get("/lang/xx", follow_redirects=False)
 
     assert resp.cookies.get("lang") == "en"
+
+
+async def _seed_fetch_runs(rows: list[dict]) -> None:
+    async with async_session_factory() as session:
+        for overrides in rows:
+            defaults = {"status": "success", "trigger": "scheduler", "new_patches": 0, "updated_products": 0}
+            session.add(FetchRun(**{**defaults, **overrides}))
+        await session.commit()
+
+
+async def test_status_partial_picks_the_latest_run_by_id_not_by_started_at(client):
+    """Regression guard for the real 2036 case: a run's started_at is only
+    as trustworthy as the system clock was at the moment it kicked off — a
+    one-off bad clock reading (RTC/NTP glitch) can leave a run dated further
+    in the future than any real run will ever reach, poisoning an
+    order-by-started_at query forever. Ordering by id (a monotonic serial,
+    immune to the clock) instead means a later real run always wins, however
+    the earlier one was dated."""
+    await _seed_fetch_runs(
+        [
+            # This id is lower (earlier, in reality) but its started_at is
+            # absurdly far in the future — exactly what a clock glitch
+            # produces. If the query ordered by started_at, this one would
+            # incorrectly keep "winning" forever.
+            {
+                "started_at": dt.datetime(2036, 2, 2, 1, 44, tzinfo=dt.timezone.utc),
+                "finished_at": dt.datetime(2036, 2, 2, 1, 44, tzinfo=dt.timezone.utc),
+                "status": "error",
+                "error": "certificate has expired",
+            },
+            {
+                "started_at": dt.datetime(2026, 9, 8, 20, 29, tzinfo=dt.timezone.utc),
+                "finished_at": dt.datetime(2026, 9, 8, 20, 29, tzinfo=dt.timezone.utc),
+                "status": "success",
+            },
+        ]
+    )
+
+    resp = await client.get("/partials/status")
+
+    assert resp.status_code == 200
+    assert "2036" not in resp.text
+    assert "status-success" in resp.text
+    assert "status-error" not in resp.text
