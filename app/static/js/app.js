@@ -478,9 +478,12 @@ async function patchwatchExportJson(scope) {
   const i18n = window.PATCHWATCH_I18N || {};
   const excludePreviewEl = document.getElementById("export-exclude-preview");
   const excludePreview = !!(excludePreviewEl && excludePreviewEl.checked);
+  const excludeOobEl = document.getElementById("export-exclude-oob");
+  const excludeOob = !!(excludeOobEl && excludeOobEl.checked);
   try {
     const params = new URLSearchParams({ scope });
     if (excludePreview) params.set("exclude_preview", "true");
+    if (excludeOob) params.set("exclude_oob", "true");
     const response = await fetch(`/export/json?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
@@ -495,7 +498,7 @@ async function patchwatchExportJson(scope) {
       patchwatchShowExportFeedback(i18n.exportCopied || "", false);
     } else {
       console.log("patchwatch export: navigator.clipboard not available, falling back to file download");
-      patchwatchDownloadJson(json, scope, excludePreview);
+      patchwatchDownloadJson(json, scope, excludePreview, excludeOob);
       patchwatchShowExportFeedback(i18n.exportDownloaded || "", false);
     }
   } catch (err) {
@@ -504,11 +507,11 @@ async function patchwatchExportJson(scope) {
   }
 }
 
-function patchwatchDownloadJson(json, scope, excludePreview) {
+function patchwatchDownloadJson(json, scope, excludePreview, excludeOob) {
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const date = new Date().toISOString().slice(0, 10);
-  const suffix = excludePreview ? "-no-preview" : "";
+  const suffix = (excludePreview ? "-no-preview" : "") + (excludeOob ? "-no-oob" : "");
   const a = document.createElement("a");
   a.href = url;
   a.download = `patchwatch-export-${scope}${suffix}-${date}.json`;

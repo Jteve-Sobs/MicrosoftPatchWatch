@@ -131,7 +131,7 @@ async def _load_dashboard_data():
         return grouped, last_run
 
 
-async def _build_export_data(scope: str, exclude_preview: bool = False) -> dict:
+async def _build_export_data(scope: str, exclude_preview: bool = False, exclude_oob: bool = False) -> dict:
     """scope="latest" limits each product to the patch(es) from its own most
     recent release date — not "released in the current calendar month",
     which went blank for a product whenever its last patch happened to land
@@ -140,9 +140,10 @@ async def _build_export_data(scope: str, exclude_preview: bool = False) -> dict:
     matching patches are omitted entirely — keeps a "latest" export from
     listing every product just to say nothing happened for most of them.
 
-    exclude_preview drops patches with update_type == "Preview" before the
-    scope filter runs, so a "latest" export skips straight to the newest
-    non-preview patch instead of surfacing a preview build."""
+    exclude_preview drops patches with update_type == "Preview" (and
+    exclude_oob those with "Out-of-Band") before the scope filter runs, so a
+    "latest" export skips straight to the newest regular patch instead of
+    surfacing a preview build or an out-of-band fix."""
     async with async_session_factory() as session:
         products = (
             await session.execute(select(Product).order_by(Product.family, Product.display_name))
@@ -162,6 +163,8 @@ async def _build_export_data(scope: str, exclude_preview: bool = False) -> dict:
         product_patches = patches_by_product.get(product.id, [])
         if exclude_preview:
             product_patches = [p for p in product_patches if p.update_type != "Preview"]
+        if exclude_oob:
+            product_patches = [p for p in product_patches if p.update_type != "Out-of-Band"]
         if scope == "latest":
             latest_date = max((p.release_date for p in product_patches if p.release_date), default=None)
             product_patches = (
@@ -196,15 +199,16 @@ async def _build_export_data(scope: str, exclude_preview: bool = False) -> dict:
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "scope": scope,
         "exclude_preview": exclude_preview,
+        "exclude_oob": exclude_oob,
         "products": products_out,
     }
 
 
 @router.get("/export/json")
-async def export_json(scope: str = "all", exclude_preview: bool = False):
+async def export_json(scope: str = "all", exclude_preview: bool = False, exclude_oob: bool = False):
     if scope not in ("all", "latest"):
         scope = "all"
-    return await _build_export_data(scope, exclude_preview)
+    return await _build_export_data(scope, exclude_preview, exclude_oob)
 
 
 @router.get("/", response_class=HTMLResponse)

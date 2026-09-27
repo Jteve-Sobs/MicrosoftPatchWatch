@@ -163,6 +163,49 @@ async def test_export_json_latest_scope_with_exclude_preview_skips_newer_preview
     assert kbs == {"KB_SECURITY"}
 
 
+async def test_export_json_exclude_oob_drops_out_of_band_patches(client, make_product, make_patch):
+    await _seed(
+        make_product,
+        make_patch,
+        patches=[
+            {"kb_number": "KB_SECURITY", "release_date": dt.date(2026, 8, 1), "update_type": "Security"},
+            {"kb_number": "KB_OOB", "release_date": dt.date(2026, 8, 20), "update_type": "Out-of-Band"},
+        ],
+    )
+
+    resp = await client.get("/export/json", params={"scope": "all", "exclude_oob": "true"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["exclude_oob"] is True
+    kbs = {p["kb"] for p in data["products"][0]["patches"]}
+    assert kbs == {"KB_SECURITY"}
+
+
+async def test_export_json_latest_scope_excluding_preview_and_oob_returns_latest_regular_patch(
+    client, make_product, make_patch
+):
+    """Newer preview and out-of-band patches both exist; with both checkboxes
+    the "latest" export falls back to the newest regular patch."""
+    await _seed(
+        make_product,
+        make_patch,
+        patches=[
+            {"kb_number": "KB_SECURITY", "release_date": dt.date(2026, 8, 12), "update_type": "Security"},
+            {"kb_number": "KB_PREVIEW", "release_date": dt.date(2026, 8, 26), "update_type": "Preview"},
+            {"kb_number": "KB_OOB", "release_date": dt.date(2026, 8, 30), "update_type": "Out-of-Band"},
+        ],
+    )
+
+    resp = await client.get(
+        "/export/json", params={"scope": "latest", "exclude_preview": "true", "exclude_oob": "true"}
+    )
+
+    assert resp.status_code == 200
+    kbs = {p["kb"] for p in resp.json()["products"][0]["patches"]}
+    assert kbs == {"KB_SECURITY"}
+
+
 async def test_export_json_unknown_scope_falls_back_to_all(client, make_product, make_patch):
     await _seed(make_product, make_patch, patches=[{"kb_number": "KB1", "release_date": dt.date(2020, 1, 1)}])
 

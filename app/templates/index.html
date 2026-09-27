@@ -24,6 +24,10 @@
             <input type="checkbox" id="export-exclude-preview">
             {{ t('export.exclude_preview') }}
           </label>
+          <label class="dropdown-checkbox">
+            <input type="checkbox" id="export-exclude-oob">
+            {{ t('export.exclude_oob') }}
+          </label>
           <button type="button" role="menuitem" onclick="patchwatchExportJson('latest')">{{ t('btn.export_latest') }}</button>
           <button type="button" role="menuitem" onclick="patchwatchExportJson('all')">{{ t('btn.export_all') }}</button>
         </div>
