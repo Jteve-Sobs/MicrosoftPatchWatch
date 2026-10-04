@@ -335,8 +335,55 @@ function patchwatchApplyStoredSort(table) {
   if (state) patchwatchApplySort(table, state.col, state.dir);
 }
 
+// Sorts a Verlauf table's rows in place. Its rows have no paired history
+// row, so this is the simple counterpart to patchwatchApplySort.
+function patchwatchApplyHistorySort(table, col, dir) {
+  const headers = Array.from(table.querySelectorAll("thead th"));
+  headers.forEach((th) => {
+    if (!th.classList.contains("sortable")) return;
+    th.setAttribute("aria-sort", th.dataset.sortCol === col ? (dir === "asc" ? "ascending" : "descending") : "none");
+  });
+  const colIndex = headers.findIndex((th) => th.dataset.sortCol === col);
+  if (colIndex === -1) return;
+
+  const tbody = table.querySelector("tbody");
+  const mult = dir === "asc" ? 1 : -1;
+  const rows = Array.from(tbody.children);
+  rows.sort((a, b) => {
+    const valA = (a.children[colIndex] && a.children[colIndex].dataset.sort) || "";
+    const valB = (b.children[colIndex] && b.children[colIndex].dataset.sort) || "";
+    if (!valA && !valB) return 0;
+    if (!valA) return 1;
+    if (!valB) return -1;
+    return patchwatchNaturalCompare(valA, valB) * mult;
+  });
+  const frag = document.createDocumentFragment();
+  rows.forEach((row) => frag.appendChild(row));
+  tbody.appendChild(frag);
+}
+
+// Remembers the active Verlauf sort per product key, so it survives the
+// panel being re-fetched (reopened after a background refresh).
+const patchwatchHistorySortState = {};
+
+function patchwatchApplyStoredHistorySort(historyBody) {
+  const table = historyBody.querySelector(".history-table");
+  const state = table ? patchwatchHistorySortState[table.dataset.product] : undefined;
+  if (state) patchwatchApplyHistorySort(table, state.col, state.dir);
+}
+
 function patchwatchSortTableBy(th) {
   const table = th.closest("table");
+  if (table && table.classList.contains("history-table")) {
+    const key = table.dataset.product;
+    const col = th.dataset.sortCol;
+    // Starts out newest first, so the first click on Date flips to oldest first.
+    const current = patchwatchHistorySortState[key] || { col: "date", dir: "desc" };
+    const dir = current.col === col && current.dir === "asc" ? "desc" : "asc";
+    patchwatchHistorySortState[key] = { col, dir };
+    patchwatchApplyHistorySort(table, col, dir);
+    return;
+  }
   const family = table && table.closest(".family-section")?.dataset.family;
   if (!table || !family) return;
   const col = th.dataset.sortCol;
@@ -374,6 +421,7 @@ document.body.addEventListener("htmx:afterSwap", (evt) => {
     const filterInput = document.querySelector(".filter");
     const q = (filterInput ? filterInput.value : "").trim().toLowerCase();
     patchwatchFilterHistoryRows(evt.target, q);
+    patchwatchApplyStoredHistorySort(evt.target);
   }
 });
 document.addEventListener("DOMContentLoaded", () => {

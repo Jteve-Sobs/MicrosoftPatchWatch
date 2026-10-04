@@ -1,18 +1,26 @@
 {% if patches %}
-<table class="history-table">
+{# Only SQL Server's history is sortable: its CU and GDR tracks interleave by
+   date, so sorting by build or title is how you follow a single track. #}
+{% set sortable = product.family == "sql_server" %}
+{% macro th_attrs(col, initial="none", cls="") -%}
+  {%- set classes = ((cls ~ " sortable") if sortable else cls)|trim -%}
+  {%- if classes %} class="{{ classes }}"{% endif -%}
+  {%- if sortable %} data-sort-col="{{ col }}" aria-sort="{{ initial }}" tabindex="0" role="button"{% endif -%}
+{%- endmacro %}
+<table class="history-table" data-product="{{ product.key }}">
   <thead>
     <tr>
-      <th>{{ t('history.date') }}</th>
+      <th{{ th_attrs("date", "descending") }}>{{ t('history.date') }}</th>
       <th>{{ t('history.kb') }}</th>
-      <th class="cell-build">{{ t('history.build') }}</th>
+      <th{{ th_attrs("build", cls="cell-build") }}>{{ t('history.build') }}</th>
       <th>{{ t('history.type') }}</th>
-      <th>{{ t('history.title') }}</th>
+      <th{{ th_attrs("title") }}>{{ t('history.title') }}</th>
     </tr>
   </thead>
   <tbody>
   {% for p in patches %}
     <tr>
-      <td>{{ format_date(p.release_date) }}</td>
+      <td data-sort="{{ p.release_date.isoformat() if p.release_date else '' }}">{{ format_date(p.release_date) }}</td>
       <td>
         {% if p.kb_number and p.kb_url %}<a href="{{ p.kb_url }}" target="_blank" rel="noopener">{{ p.kb_number }}</a>
         {% else %}{{ p.kb_number or "–" }}{% endif %}
@@ -22,12 +30,12 @@
          priority over kb_url here — a KB hint may have overwritten kb_url
          with the KB article link instead. #}
       {% set build_link = p.release_notes_url or (p.kb_url if not p.kb_number else None) %}
-      <td class="cell-build">
+      <td class="cell-build" data-sort="{{ p.build or '' }}">
         {% if p.build and build_link %}<a href="{{ build_link }}" target="_blank" rel="noopener">{{ p.build }}</a>
         {% else %}{{ p.build or "–" }}{% endif %}
       </td>
       <td>{% if p.update_type %}<span class="badge badge-{{ p.update_type|lower|replace(' ', '-') }}">{{ t('badge.' ~ (p.update_type|lower|replace(' ', '-'))) }}</span>{% endif %}</td>
-      <td class="cell-title">{{ p.title or "" }}</td>
+      <td class="cell-title" data-sort="{{ p.title or '' }}">{{ p.title or "" }}</td>
     </tr>
   {% endfor %}
   </tbody>

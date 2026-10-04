@@ -65,6 +65,27 @@ async def test_product_history_returns_patches_newest_first(client, make_product
     assert resp.text.index("KB2") < resp.text.index("KB1")
 
 
+async def test_product_history_sortable_only_for_sql_server(client, make_product, make_patch):
+    async with async_session_factory() as session:
+        sql = make_product("sql-2022", family="sql_server")
+        win = make_product("win11-24h2", family="windows_client")
+        session.add_all([sql, win])
+        await session.flush()
+        session.add(make_patch(sql.id, build="16.0.4175.1", title="CU17", release_date=dt.date(2026, 8, 1)))
+        session.add(make_patch(win.id, build="26100.1", release_date=dt.date(2026, 8, 1)))
+        await session.commit()
+
+    sql_resp = await client.get("/product/sql-2022/history")
+    win_resp = await client.get("/product/win11-24h2/history")
+
+    for col in ("date", "build", "title"):
+        assert f'data-sort-col="{col}"' in sql_resp.text
+    assert 'data-sort-col="kb"' not in sql_resp.text
+    assert 'data-sort="16.0.4175.1"' in sql_resp.text
+    assert 'data-sort="2026-08-01"' in sql_resp.text
+    assert "sortable" not in win_resp.text
+
+
 async def test_product_history_unknown_key_is_404(client):
     resp = await client.get("/product/does-not-exist/history")
 
