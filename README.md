@@ -162,6 +162,12 @@ correction.
 refresh immediately, even within the `MIN_REFRESH_INTERVAL_MINUTES` debounce
 window, so a correction can be checked against fresh data right away.
 
+`/admin/logs` — every refresh run, newest first (50 per page). Expanding a run
+shows each source's status, duration, patches seen/new, its errors and
+everything it logged at INFO+ while running (retries, skipped KB pages,
+tracebacks), stored per source in the `fetch_run_sources` table. Runs from
+before this table existed only show their combined error text.
+
 ## Notifications
 
 Set `NTFY_URL` in `.env` to a [ntfy](https://ntfy.sh/) topic URL (either the
@@ -204,6 +210,16 @@ in) a broken state does.
   nothing for the affected page (logged as an error in `FetchRun`, but
   doesn't break the whole refresh). A look at the logs / `/api/products`
   reveals this quickly.
+- **support.microsoft.com rate-limits/bot-blocks scrapers**: since
+  2026-10 it intermittently answers the SQL Server build pages (now
+  redirected there from Learn) and KB articles with `403`. All fetchers share
+  one HTTP transport (`app/fetchers/http_transport.py`) that retries
+  403/429/5xx and timeouts with growing backoff (`HTTP_MAX_RETRIES`,
+  `HTTP_RETRY_BACKOFF_SECONDS`) and sends requests to that host one at a time,
+  at least `SUPPORT_SITE_MIN_INTERVAL_SECONDS` apart. MSRC's large monthly
+  CVRF documents get their own timeout (`MSRC_CVRF_TIMEOUT_SECONDS`,
+  default 90 s). If the block outlasts all retries, the run ends `partial`
+  and the next refresh fills the gap.
 - **SQL Server has no end-of-life data**: unlike the Windows pages, the build-
   versions pages carry no support-end-date column, so `support_end_date` is
   always empty for SQL Server products (same situation as .NET Framework).
@@ -263,7 +279,7 @@ pytest
 
 ```
 app/
-  fetchers/             # one file per data source
+  fetchers/             # one file per data source (+ shared retrying HTTP transport)
   routers/              # web.py (HTML/HTMX), api.py (JSON)
   templates/            # Jinja2 + HTMX partials
   static/               # CSS/JS

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import enum
+import json
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -111,3 +112,42 @@ class FetchRun(Base):
     new_patches: Mapped[int] = mapped_column(Integer, default=0)
     updated_products: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    sources: Mapped[list["FetchRunSource"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="FetchRunSource.id"
+    )
+
+
+class FetchRunSource(Base):
+    """What one fetcher did within one FetchRun — the detail behind the
+    run's one-line summary, shown on /admin/logs. Its own table (rather than
+    more columns on FetchRun) so create_all adds it to an existing database
+    without a migration."""
+
+    __tablename__ = "fetch_run_sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("fetch_runs.id", ondelete="CASCADE"), index=True)
+    fetcher: Mapped[str] = mapped_column(String(50))
+    # "success" / "warning" (worked, but something was retried or skipped
+    # along the way) / "partial" (reported errors) / "error" (crashed).
+    status: Mapped[str] = mapped_column(String(20))
+    started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    patches_seen: Mapped[int] = mapped_column(Integer, default=0)
+    new_patches: Mapped[int] = mapped_column(Integer, default=0)
+    # FetchResult.errors, one per line (or the traceback if fetch() crashed).
+    errors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Everything the fetcher logged at INFO+ while it ran — retries, skipped
+    # KB pages, tracebacks behind the errors above.
+    log: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON list of the patches this source newly found (product, KB, build,
+    # title, date, ...). Left empty on the very first run ever, when every
+    # patch counts as "new" — same reasoning as the ntfy notification.
+    new_patch_list: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    run: Mapped["FetchRun"] = relationship(back_populates="sources")
+
+    @property
+    def new_patch_items(self) -> list[dict]:
+        return json.loads(self.new_patch_list) if self.new_patch_list else []

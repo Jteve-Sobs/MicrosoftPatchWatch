@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import async_session_factory
@@ -28,7 +29,7 @@ from app.i18n import (
     resolve_locale,
     translate,
 )
-from app.models import Patch, Product
+from app.models import FetchRun, Patch, Product
 from app.product_sort import sort_products_chronologically
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
 from app.static_version import static_version
@@ -104,6 +105,49 @@ async def admin_index(request: Request, locale: str = Depends(resolve_locale)):
 async def admin_force_refresh():
     started = await maybe_trigger_refresh(trigger="admin-manual", force=True)
     return RedirectResponse(url=f"/admin?refresh_started={int(started)}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+LOGS_PAGE_SIZE = 50
+
+
+def _format_duration(start: dt.datetime | None, end: dt.datetime | None) -> str:
+    if start is None or end is None:
+        return "–"
+    seconds = max(int((end - start).total_seconds()), 0)
+    minutes, seconds = divmod(seconds, 60)
+    return f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
+
+
+@router.get("/logs", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def admin_logs(request: Request, page: int = 1, locale: str = Depends(resolve_locale)):
+    """Every FetchRun, newest first, with each source's errors and captured
+    log (retries, skipped KB pages, tracebacks) expandable per run."""
+    page = max(page, 1)
+    async with async_session_factory() as session:
+        total = (await session.execute(select(func.count()).select_from(FetchRun))).scalar_one()
+        runs = (
+            await session.execute(
+                select(FetchRun)
+                .options(selectinload(FetchRun.sources))
+                .order_by(FetchRun.id.desc())
+                .offset((page - 1) * LOGS_PAGE_SIZE)
+                .limit(LOGS_PAGE_SIZE)
+            )
+        ).scalars().all()
+
+    return templates.TemplateResponse(
+        request,
+        "admin/logs.html",
+        {
+            "runs": runs,
+            "page": page,
+            "has_next": page * LOGS_PAGE_SIZE < total,
+            "total": total,
+            "format_duration": _format_duration,
+            "refresh_running": is_refresh_running(),
+            **_i18n_context(locale),
+        },
+    )
 
 
 async def _get_product_or_404(session, key: str) -> Product:

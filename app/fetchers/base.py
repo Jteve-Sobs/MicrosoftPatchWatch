@@ -6,6 +6,7 @@ import datetime as dt
 import httpx
 
 from app.config import get_settings
+from app.fetchers.http_transport import RetryingTransport
 
 
 @dataclasses.dataclass(slots=True)
@@ -78,4 +79,9 @@ class BaseFetcher:
             },
             timeout=settings.request_timeout_seconds,
             follow_redirects=True,
+            transport=RetryingTransport(
+                max_retries=settings.http_max_retries,
+                backoff_seconds=settings.http_retry_backoff_seconds,
+                throttle_interval_seconds=settings.support_site_min_interval_seconds,
+            ),
         )

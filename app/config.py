@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     min_refresh_interval_minutes: float = 15.0
 
     request_timeout_seconds: float = 30.0
+    # MSRC's monthly CVRF documents carry every CVE of the month and can take
+    # well over 30 s to arrive when the API is slow (observed 2026-10-04), so
+    # they get their own, longer limit.
+    msrc_cvrf_timeout_seconds: float = 90.0
+    # Retries per request on 403/429/5xx/timeouts — see
+    # app/fetchers/http_transport.py. Wait doubles per attempt starting here.
+    http_max_retries: int = 3
+    http_retry_backoff_seconds: float = 2.0
+    # Minimum gap between two requests to support.microsoft.com, which
+    # rate-limits/bot-blocks bursts. Those requests are also never parallel.
+    support_site_min_interval_seconds: float = 1.0
     http_user_agent: str = (
         "MicrosoftPatchWatch/1.0 (+https://github.com/Jteve-Sobs/MicrosoftPatchWatch)"
     )

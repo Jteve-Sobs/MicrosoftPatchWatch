@@ -466,3 +466,45 @@ section[data-family="dotnet_framework"] .history-table .cell-build {
 .footer-meta { margin-top: 10px; }
 .footer-admin { margin-top: 6px; }
 .footer-credit { margin-top: 14px; opacity: 0.7; }
+
+/* Admin fetch log (/admin/logs) */
+.status-warning { color: var(--sev-oob); }
+.log-runs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.log-run {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.log-run-partial { border-left: 4px solid var(--sev-oob); }
+.log-run-error { border-left: 4px solid var(--sev-security); }
+.log-run > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.log-run-status { font-weight: 600; min-width: 12em; }
+.log-run-time { font-variant-numeric: tabular-nums; }
+.log-run-body { padding: 0 14px 14px; }
+.log-sources td { vertical-align: top; }
+.log-source-detail td { padding-top: 0; }
+.log-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 4px 0; cursor: pointer; }
+.log-pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  max-height: 24em;
+  overflow: auto;
+  background: var(--surface-alt);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.log-pre-error { color: var(--sev-security); }
+.log-pager { margin-bottom: 24px; }
+.log-new-patches { margin-bottom: 10px; font-size: 0.85rem; }

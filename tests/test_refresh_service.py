@@ -440,3 +440,87 @@ async def test_kb_url_does_not_overwrite_manual_edit(db_session, monkeypatch):
     async with async_session_factory() as session:
         row = (await session.execute(select(Patch))).scalar_one()
         assert row.kb_url == "https://example.invalid/manually-corrected"
+
+
+class _LoggingFetcher(BaseFetcher):
+    """Logs like a real fetcher would during a retry, then succeeds."""
+
+    name = "chatty"
+
+    async def fetch(self) -> FetchResult:
+        import logging
+
+        logging.getLogger("patchwatch.fetchers.http").info("GET https://x returned 403, retry 1/3 in 2.0s")
+        return FetchResult()
+
+
+async def test_records_per_source_details(db_session, monkeypatch, mock_ntfy):
+    from app.models import FetchRun, FetchRunSource
+
+    _install_fetchers(
+        monkeypatch,
+        _FakeFetcher(FetchResult(errors=["fake: boom"])),
+        _LoggingFetcher(),
+        _FakeFetcher(raises=RuntimeError("connection reset")),
+    )
+
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        sources = (await session.execute(select(FetchRunSource).order_by(FetchRunSource.id))).scalars().all()
+        run = (await session.execute(select(FetchRun))).scalar_one()
+
+    assert [s.run_id for s in sources] == [run.id] * 3
+    partial, warned, crashed = sources
+    assert (partial.fetcher, partial.status, partial.errors) == ("fake", "partial", "fake: boom")
+    assert warned.status == "warning"
+    assert "returned 403, retry 1/3" in warned.log
+    assert warned.errors is None
+    assert crashed.status == "error"
+    assert "RuntimeError: connection reset" in crashed.errors
+    assert all(s.finished_at >= s.started_at for s in sources)
+
+
+def _patch(kb: str) -> PatchInfo:
+    return PatchInfo(
+        product_key="p1",
+        kb_number=kb,
+        build="26100.1",
+        title=f"Patch {kb}",
+        update_type="Security",
+        release_date=dt.date(2026, 10, 1),
+        severity="Critical",
+        kb_url=None,
+        source="fake",
+    )
+
+
+async def test_new_patches_listed_per_source_except_on_first_run(db_session, monkeypatch, mock_ntfy):
+    from app.models import FetchRunSource
+
+    product = ProductInfo(key="p1", display_name="Product 1", family="windows_client")
+
+    _install_fetchers(monkeypatch, _FakeFetcher(FetchResult(products=[product], patches=[_patch("KB1")])))
+    await refresh_service.run_all_fetchers(trigger="test")
+    _install_fetchers(
+        monkeypatch, _FakeFetcher(FetchResult(products=[product], patches=[_patch("KB1"), _patch("KB2")]))
+    )
+    await refresh_service.run_all_fetchers(trigger="test")
+
+    async with async_session_factory() as session:
+        first, second = (await session.execute(select(FetchRunSource).order_by(FetchRunSource.id))).scalars().all()
+
+    assert first.new_patches == 1
+    assert first.new_patch_items == []  # first run ever: everything is new, not listed
+    assert second.new_patches == 1
+    assert second.new_patch_items == [
+        {
+            "product": "Product 1",
+            "kb_number": "KB2",
+            "build": "26100.1",
+            "title": "Patch KB2",
+            "update_type": "Security",
+            "severity": "Critical",
+            "release_date": "2026-10-01",
+        }
+    ]

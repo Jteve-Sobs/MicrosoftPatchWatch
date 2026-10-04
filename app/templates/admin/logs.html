@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ t('admin.logs') }} – {{ t('admin.title') }}{% endblock %}
+{% macro status_icon(status) -%}
+  {%- if status == "success" %}✅{% elif status in ("partial", "warning") %}⚠️{% elif status == "running" %}⏳{% else %}❌{% endif -%}
+{%- endmacro %}
+{% block content %}
+<section class="intro">
+  <p><a href="/admin">{{ t('admin.back') }}</a></p>
+  <h1>{{ t('admin.logs') }}</h1>
+  <p>{{ t('admin.logs_intro') }}</p>
+</section>
+
+{% if not runs %}
+  <p class="muted">{{ t('admin.logs_empty') }}</p>
+{% else %}
+<div class="log-runs">
+  {% for run in runs %}
+  {% set warned = run.sources|selectattr("status", "equalto", "warning")|list %}
+  {# The newest run starts expanded when something went wrong or it found
+     new patches, so "what happened last time?" needs no click. #}
+  <details class="log-run log-run-{{ run.status }}" {% if loop.first and page == 1 and (run.status in ("partial", "error") or warned or run.new_patches) %}open{% endif %}>
+    <summary>
+      <span class="log-run-status status-{{ run.status }}">
+        {{ status_icon(run.status) }} {{ t('admin.logs_status.' ~ run.status) }}
+        {%- if run.status == "success" and warned %} <span class="muted">· {{ t('admin.logs_status.warning') }}</span>{% endif %}
+      </span>
+      <span class="log-run-time">{{ format_datetime(run.started_at) }} UTC</span>
+      <span class="muted">{{ format_duration(run.started_at, run.finished_at) }}</span>
+      <span class="muted">{{ run.trigger }}</span>
+      <span class="muted">{{ run.new_patches }} {{ t('admin.logs_new') }} · {{ run.updated_products }} {{ t('admin.logs_products') }}</span>
+    </summary>
+
+    <div class="log-run-body">
+      {% if run.sources %}
+      <div class="table-wrap">
+      <table class="patch-table log-sources">
+        <thead>
+          <tr>
+            <th>{{ t('admin.logs_source') }}</th>
+            <th>{{ t('admin.logs_status') }}</th>
+            <th>{{ t('admin.logs_duration') }}</th>
+            <th>{{ t('admin.logs_result') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for source in run.sources %}
+          <tr>
+            <td><code>{{ source.fetcher }}</code></td>
+            <td class="status-{{ source.status }}">{{ status_icon(source.status) }} {{ t('admin.logs_status.' ~ source.status) }}</td>
+            <td class="muted">{{ format_duration(source.started_at, source.finished_at) }}</td>
+            <td class="muted">{{ source.patches_seen }} {{ t('admin.logs_patches_seen') }} · {{ source.new_patches }} {{ t('admin.logs_new') }}</td>
+          </tr>
+          {% if source.errors or source.log or source.new_patches %}
+          <tr class="log-source-detail">
+            <td colspan="4">
+              {% if source.new_patch_list %}
+                <div class="log-label">{{ t('admin.logs_new_patches') }} ({{ source.new_patches }})</div>
+                <div class="table-wrap">
+                <table class="patch-table log-new-patches">
+                  <thead>
+                    <tr>
+                      <th>{{ t('history.date') }}</th>
+                      <th>{{ t('admin.logs_product') }}</th>
+                      <th>{{ t('history.kb') }}</th>
+                      <th>{{ t('history.build') }}</th>
+                      <th>{{ t('history.type') }}</th>
+                      <th>{{ t('history.title') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in source.new_patch_items %}
+                    <tr>
+                      <td>{{ p.release_date or '–' }}</td>
+                      <td>{{ p.product }}</td>
+                      <td>{{ p.kb_number or '–' }}</td>
+                      <td>{{ p.build or '–' }}</td>
+                      <td>{% if p.update_type %}<span class="badge badge-{{ p.update_type|lower }}">{{ p.update_type }}</span>{% endif %}{% if p.severity %} <span class="muted">{{ p.severity }}</span>{% endif %}</td>
+                      <td>{{ p.title or '–' }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                </div>
+              {% elif source.new_patches %}
+                <p class="muted">{{ t('admin.logs_new_not_listed') }}</p>
+              {% endif %}
+              {% if source.errors %}
+                <div class="log-label">{{ t('admin.logs_errors') }}</div>
+                <pre class="log-pre log-pre-error">{{ source.errors }}</pre>
+              {% endif %}
+              {% if source.log %}
+                <details {% if source.status != "success" and not source.errors %}open{% endif %}>
+                  <summary class="log-label">{{ t('admin.logs_log') }} ({{ source.log.count('\n') + 1 }})</summary>
+                  <pre class="log-pre">{{ source.log }}</pre>
+                </details>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if run.status == "success" and not warned %}<p class="muted">{{ t('admin.logs_no_issues') }}</p>{% endif %}
+      {% else %}
+        <p class="muted">{{ t('admin.logs_no_details') }}</p>
+        {% if run.error %}<pre class="log-pre log-pre-error">{{ run.error }}</pre>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+
+{% if page > 1 or has_next %}
+<nav class="toolbar log-pager">
+  {% if page > 1 %}<a class="btn btn-secondary" href="/admin/logs?page={{ page - 1 }}">{{ t('admin.logs_newer') }}</a>{% endif %}
+  {% if has_next %}<a class="btn btn-secondary" href="/admin/logs?page={{ page + 1 }}">{{ t('admin.logs_older') }}</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -45,6 +45,7 @@ import re
 
 from bs4 import BeautifulSoup
 
+from app.config import get_settings
 from app.fetchers.base import BaseFetcher, FetchResult, PatchInfo, ProductInfo
 from app.models import ProductFamily
 
@@ -59,9 +60,10 @@ KB_HELP_URL_TEMPLATE = "https://support.microsoft.com/help/{kb}"
 # releases monthly, so a handful of months is enough to fill in recent history
 # without hammering the API on every refresh.
 MONTHS_TO_SCAN = 6
-# How many granular-KB article pages (see _discover_os_bundles) to fetch at
-# once — same reasoning/value as dotnet.py's MAX_CONCURRENT_REQUESTS: be
-# reasonably fast without hammering the server.
+# How many granular-KB article pages (see _discover_os_bundles) to have in
+# flight at once. The shared transport (fetchers/http_transport.py) serializes
+# and paces support.microsoft.com requests anyway, so this mostly just bounds
+# how many tasks queue up there.
 MAX_CONCURRENT_BUNDLE_REQUESTS = 5
 
 FRAMEWORK_VERSION_RE = re.compile(r"\.NET Framework ([0-9.]+(?:\s*(?:AND|,)\s*[0-9.]+)*)", re.IGNORECASE)
@@ -189,7 +191,11 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
         known_versions: set[tuple[str, str]],
         framework_kbs_seen: dict[str, dt.date],
     ) -> None:
-        resp = await client.get(CVRF_URL_TEMPLATE.format(update_id=update_id), headers=JSON_HEADERS)
+        resp = await client.get(
+            CVRF_URL_TEMPLATE.format(update_id=update_id),
+            headers=JSON_HEADERS,
+            timeout=get_settings().msrc_cvrf_timeout_seconds,
+        )
         resp.raise_for_status()
         doc = resp.json()
 
@@ -358,7 +364,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                     resp = await client.get(KB_HELP_URL_TEMPLATE.format(kb=kb_digits))
                     resp.raise_for_status()
                 except Exception as exc:  # noqa: BLE001
-                    logger.debug("msrc: could not fetch KB%s's own article: %s", kb_digits, exc)
+                    logger.warning("msrc: skipped KB%s, could not fetch its own article: %s", kb_digits, exc)
                     return
 
             try:
@@ -445,7 +451,7 @@ class MsrcDotNetFrameworkFetcher(BaseFetcher):
                         )
                     )
             except Exception as exc:  # noqa: BLE001
-                logger.debug("msrc: could not parse KB%s's article: %s", kb_digits, exc)
+                logger.warning("msrc: skipped KB%s, could not parse its article: %s", kb_digits, exc)
 
         await asyncio.gather(*(_handle_one(kb, date) for kb, date in framework_kbs_seen.items()))
 

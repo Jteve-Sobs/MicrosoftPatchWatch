@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import json
 import logging
+import traceback
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -25,11 +27,17 @@ from app.config import get_settings
 from app.database import async_session_factory
 from app.fetchers.base import PatchInfo, ProductInfo
 from app.fetchers.registry import get_fetchers
-from app.models import FetchRun, Patch, Product
+from app.models import FetchRun, FetchRunSource, Patch, Product
 from app.notifier import NewPatchNotice, notify_fetch_errors, notify_new_patches
 
 logger = logging.getLogger("patchwatch.refresh")
 settings = get_settings()
+
+# Per-source log kept on FetchRunSource.log is capped so a pathological run
+# (hundreds of retries/tracebacks) can't bloat the table.
+MAX_SOURCE_LOG_CHARS = 20000
+# Same idea for FetchRunSource.new_patch_list.
+MAX_SOURCE_NEW_PATCHES = 500
 
 _refresh_lock = asyncio.Lock()
 _last_run_started_at: dt.datetime | None = None
@@ -83,14 +91,30 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
             patch_kb_hints: dict[tuple[str, str], tuple[str, str | None]] = {}
 
             for fetcher in get_fetchers():
-                try:
-                    result = await fetcher.fetch()
-                except Exception as exc:  # noqa: BLE001 - one bad source must not kill the run
-                    logger.exception("Fetcher %s crashed", fetcher.name)
-                    errors.append(f"{fetcher.name}: {exc}")
+                source = FetchRunSource(
+                    run_id=run.id, fetcher=fetcher.name, started_at=dt.datetime.now(dt.timezone.utc)
+                )
+                with _capture_fetcher_logs() as captured:
+                    try:
+                        result = await fetcher.fetch()
+                    except Exception as exc:  # noqa: BLE001 - one bad source must not kill the run
+                        logger.exception("Fetcher %s crashed", fetcher.name)
+                        errors.append(f"{fetcher.name}: {exc}")
+                        result = None
+                        source.errors = traceback.format_exc()
+                source.finished_at = dt.datetime.now(dt.timezone.utc)
+                source.log = _join_capped(captured)
+                session.add(source)
+                if result is None:
+                    source.status = "error"
+                    await session.commit()
                     continue
 
                 errors.extend(result.errors)
+                source.errors = "\n".join(result.errors) or None
+                source.patches_seen = len(result.patches)
+                source.status = "partial" if result.errors else ("warning" if captured else "success")
+                new_before = len(new_notices)
                 patch_kb_hints.update(result.patch_kb_hints)
 
                 for product_info in result.products:
@@ -121,6 +145,12 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                             )
                         )
 
+                source_notices = new_notices[new_before:]
+                source.new_patches = len(source_notices)
+                if source_notices and not is_first_run:
+                    source.new_patch_list = json.dumps(
+                        [_notice_to_dict(n) for n in source_notices[:MAX_SOURCE_NEW_PATCHES]]
+                    )
                 await session.commit()
                 logger.info("Fetcher %s done: %s patches seen", fetcher.name, len(result.patches))
 
@@ -351,3 +381,59 @@ async def _apply_patch_kb_hints(
         await session.execute(
             update(Patch).where(Patch.id == patch_id).values(kb_number=kb_number, kb_url=kb_url)
         )
+
+
+class _ListHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.lines: list[str] = []
+        self.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self.lines.append(self.format(record))
+        except Exception:  # noqa: BLE001 - never let log capture break a refresh
+            self.handleError(record)
+
+
+class _capture_fetcher_logs:
+    """Collects everything logged under "patchwatch.fetchers.*" (each fetcher
+    plus the shared retrying transport) while one fetcher runs, for
+    FetchRunSource.log. Safe because fetchers run one at a time, under
+    _refresh_lock."""
+
+    def __enter__(self) -> list[str]:
+        self._logger = logging.getLogger("patchwatch.fetchers")
+        self._handler = _ListHandler()
+        self._logger.addHandler(self._handler)
+        # Retries are logged at INFO; make sure they reach the capture even
+        # when LOG_LEVEL is set stricter than that.
+        self._old_level = self._logger.level
+        if self._logger.getEffectiveLevel() > logging.INFO:
+            self._logger.setLevel(logging.INFO)
+        return self._handler.lines
+
+    def __exit__(self, *exc_info) -> None:
+        self._logger.removeHandler(self._handler)
+        self._logger.setLevel(self._old_level)
+
+
+def _join_capped(lines: list[str]) -> str | None:
+    if not lines:
+        return None
+    text = "\n".join(lines)
+    if len(text) > MAX_SOURCE_LOG_CHARS:
+        text = text[:MAX_SOURCE_LOG_CHARS] + "\n… (truncated)"
+    return text
+
+
+def _notice_to_dict(notice: NewPatchNotice) -> dict:
+    return {
+        "product": notice.product_display_name,
+        "kb_number": notice.kb_number,
+        "build": notice.build,
+        "title": notice.title,
+        "update_type": notice.update_type,
+        "severity": notice.severity,
+        "release_date": notice.release_date.isoformat() if notice.release_date else None,
+    }

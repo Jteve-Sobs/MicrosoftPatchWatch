@@ -5,6 +5,7 @@
   <h1>{{ t('admin.title') }}</h1>
   <p>{{ t('admin.intro') }}</p>
   <div class="toolbar">
+    <a class="btn btn-secondary" href="/admin/logs">{{ t('admin.logs') }}</a>
     <form method="post" action="/admin/refresh">
       <button class="btn" type="submit" {% if refresh_running %}disabled{% endif %}>{{ t('admin.force_refresh') }}</button>
     </form>
