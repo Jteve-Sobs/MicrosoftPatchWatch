@@ -1,15 +1,17 @@
-fastapi==0.141.1
-uvicorn[standard]==0.52.4
-sqlalchemy==2.0.52
-asyncpg==0.31.0
-pydantic==2.13.4
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+# [asyncio] pulls in greenlet, which SQLAlchemy 2.1+ no longer installs by default
+# but AsyncSession needs.
+sqlalchemy[asyncio]==2.1.4
+asyncpg==0.32.0
+pydantic==2.14.1
 pydantic-settings==2.15.0
 jinja2==3.1.6
-markupsafe==3.0.3
+markupsafe==3.0.4
 httpx==0.28.1
 beautifulsoup4==4.15.0
-lxml==6.1.2
+lxml==6.1.3
 apscheduler==3.11.3
-python-dotenv==1.2.3
+python-dotenv==1.2.4
 # Needed by FastAPI's Form(...) parsing — used by the /admin patch-edit forms.
 python-multipart==0.0.32
