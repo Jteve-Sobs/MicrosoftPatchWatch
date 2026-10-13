@@ -42,17 +42,21 @@ async def test_modern_two_table_page_yields_one_product_with_both_tracks(mock_fe
     assert by_kb["KB5101347"].title == "SQL Server 2022 CU25 + GDR"
 
 
-async def test_kb_link_href_used_verbatim_absolute_or_relative(mock_fetch):
+async def test_kb_link_href_absolute_or_resolved_against_page(mock_fetch):
     """Real quirk: some KB links are absolute (support.microsoft.com), others
     are relative-path anchors to a sibling doc page on the same site. Both
     are still a legitimate "more info" link — kb_url should be whatever the
-    page actually links to, not a reconstructed URL, for either case."""
+    page actually links to, not a reconstructed URL, but relative ones must
+    be resolved against the Learn page URL, or the browser would resolve them
+    against this app's own host (links pointing at localhost)."""
     mock_fetch({URL_2022: (200, load_fixture("sql_server", "sqlserver_2022.html"))})
     result = await SqlServerFetcher().fetch()
 
     by_kb = {p.kb_number: p for p in result.patches}
     assert by_kb["KB5093420"].kb_url == "https://support.microsoft.com/help/5093420"
-    assert by_kb["KB5081477"].kb_url == "cumulativeupdate25"
+    assert by_kb["KB5081477"].kb_url == (
+        "https://learn.microsoft.com/en-us/troubleshoot/sql/releases/sqlserver-2022/cumulativeupdate25"
+    )
 
 
 async def test_older_service_pack_tables_aggregate_into_one_product(mock_fetch):

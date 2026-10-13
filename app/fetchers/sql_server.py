@@ -24,6 +24,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import re
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 
@@ -100,7 +101,9 @@ class SqlServerFetcher(BaseFetcher):
             if not self._is_build_table(el):
                 continue
             found_tables += 1
-            self._parse_table(el, heading, product_key, display_name, result)
+            # str(response.url), not url: Learn 301s these pages to
+            # support.microsoft.com, which relative hrefs are relative to.
+            self._parse_table(el, heading, product_key, display_name, str(response.url), result)
 
         if found_tables == 0:
             result.errors.append(
@@ -123,7 +126,7 @@ class SqlServerFetcher(BaseFetcher):
         return "knowledge base" in headers and "release date" in headers
 
     def _parse_table(
-        self, table: Tag, heading: str, product_key: str, display_name: str, result: FetchResult
+        self, table: Tag, heading: str, product_key: str, display_name: str, page_url: str, result: FetchResult
     ) -> None:
         headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
         col_index = {name: i for i, name in enumerate(headers)}
@@ -168,7 +171,10 @@ class SqlServerFetcher(BaseFetcher):
                 KB_RE.search(kb_link.get_text(" ", strip=True)) if kb_link else None
             )
             kb_number = f"KB{kb_match.group(1)}" if kb_match else None
-            kb_url = kb_link["href"] if kb_link and kb_link.has_attr("href") else (
+            # Learn's hrefs are relative ("/en-us/help/4583458",
+            # "cumulative-update/kb5075211-cu2") — stored as-is, the browser
+            # would resolve them against this app's own host instead.
+            kb_url = urljoin(page_url, kb_link["href"]) if kb_link and kb_link.has_attr("href") else (
                 f"https://support.microsoft.com/help/{kb_match.group(1)}" if kb_match else None
             )
 
