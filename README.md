@@ -292,6 +292,22 @@ tests/
   test_*.py             # one test module per fetcher
 ```
 
+## License
+
+The source code of this project is licensed under the [MIT License](LICENSE).
+
+- **Third-party packages:** the Python wheels bundled in `offline_packages.zip`
+  are third-party software and remain under their own respective licenses
+  (all of the dependencies in `requirements.txt` use permissive licenses such
+  as MIT, BSD or Apache-2.0).
+- **Data and trademarks:** MicrosoftPatchWatch is an independent project and is
+  not affiliated with, endorsed by or sponsored by Microsoft. The patch data it
+  displays (KB numbers, builds, release dates, CVE/severity information) is
+  fetched from Microsoft's public sources listed under
+  [Data sources](#data-sources) and is not covered by this project's license.
+  Microsoft, Windows, Windows Server, SQL Server and .NET are trademarks of the
+  Microsoft group of companies.
+
 ---
 
 Made with 🫶 by [Jteve-Sobs](https://github.com/Jteve-Sobs)
