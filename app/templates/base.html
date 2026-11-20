@@ -28,6 +28,9 @@
     window.PATCHWATCH_I18N = {
       hiddenNone: {{ t('nav.hidden_none')|tojson }},
       show: {{ t('nav.show')|tojson }},
+      showAll: {{ t('nav.show_all')|tojson }},
+      hideOutdated: {{ t('nav.hide_outdated')|tojson }},
+      hideOutdatedHint: {{ t('nav.hide_outdated_hint')|replace('{days}', outdated_lag_days|string)|tojson }},
       refreshRunning: {{ t('status.refresh_running')|tojson }},
       refreshDebounced: {{ t('status.refresh_debounced')|tojson }},
       exportCopied: {{ t('export.copied')|tojson }},

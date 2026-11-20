@@ -6,6 +6,7 @@ lifespan — see the fixtures' docstrings for why)."""
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from app.database import async_session_factory
 from app.models import FetchRun
@@ -38,6 +39,29 @@ async def test_index_lists_seeded_product(client, make_product, make_patch):
     assert resp.status_code == 200
     assert "Windows 11, version 24H2" in resp.text
     assert "KB5041160" in resp.text
+
+
+async def test_index_marks_products_lagging_behind_their_family_as_outdated(client, make_product, make_patch):
+    async with async_session_factory() as session:
+        rows = [
+            ("sql-2022", "SQL Server 2022", "sql_server", dt.date(2026, 11, 12)),
+            ("sql-2016", "SQL Server 2016", "sql_server", dt.date(2026, 7, 14)),
+            # Different family, older than SQL 2022 too — must only be compared
+            # within its own family, where it is the newest.
+            ("netfx-4.8", ".NET Framework 4.8", "dotnet_framework", dt.date(2026, 7, 14)),
+        ]
+        for key, name, family, date in rows:
+            product = make_product(key, display_name=name, family=family)
+            session.add(product)
+            await session.flush()
+            session.add(make_patch(product.id, release_date=date))
+        await session.commit()
+
+    resp = await client.get("/")
+
+    assert resp.status_code == 200
+    outdated = set(re.findall(r'data-key="([^"]+)"[^>]*data-outdated="1"', resp.text))
+    assert outdated == {"sql-2016"}
 
 
 async def test_index_shows_empty_state_with_no_products(client):

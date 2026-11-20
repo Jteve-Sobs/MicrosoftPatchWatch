@@ -30,6 +30,21 @@ function patchwatchShowProduct(key) {
   patchwatchRefreshVisibility();
 }
 
+// Bulk actions for the hidden-products menu. "Outdated" is decided
+// server-side (data-outdated on the row, see app/outdated.py) — the client
+// only applies it, so the rule lives in exactly one place.
+function patchwatchShowAll() {
+  setHiddenProducts(new Set());
+  patchwatchRefreshVisibility();
+}
+
+function patchwatchHideOutdated() {
+  const hidden = getHiddenProducts();
+  document.querySelectorAll('.product-row[data-outdated="1"]').forEach((row) => hidden.add(row.dataset.key));
+  setHiddenProducts(hidden);
+  patchwatchRefreshVisibility();
+}
+
 function patchwatchFilter() {
   patchwatchRefreshVisibility();
 }
@@ -150,6 +165,36 @@ function renderHiddenPanel(hidden) {
   const panel = document.getElementById("hidden-panel");
   if (!panel) return;
   panel.replaceChildren();
+
+  // Bulk actions on top. Their clicks stop propagating: the panel is rebuilt
+  // right away, so the clicked button is already detached by the time the
+  // document-level outside-click handler sees the event — it would treat it
+  // as a click outside the menu and close the panel.
+  const outdatedKeys = Array.from(document.querySelectorAll('.product-row[data-outdated="1"]'), (row) => row.dataset.key);
+  const outdatedVisible = outdatedKeys.filter((key) => !hidden.has(key)).length;
+  const actions = document.createElement("div");
+  actions.className = "hidden-actions";
+  const hideOutdatedBtn = document.createElement("button");
+  hideOutdatedBtn.type = "button";
+  hideOutdatedBtn.className = "btn btn-secondary btn-small";
+  hideOutdatedBtn.textContent = `${i18n.hideOutdated || "Hide outdated"} (${outdatedVisible})`;
+  if (i18n.hideOutdatedHint) hideOutdatedBtn.title = i18n.hideOutdatedHint;
+  hideOutdatedBtn.disabled = outdatedVisible === 0;
+  hideOutdatedBtn.addEventListener("click", (evt) => {
+    evt.stopPropagation();
+    patchwatchHideOutdated();
+  });
+  const showAllBtn = document.createElement("button");
+  showAllBtn.type = "button";
+  showAllBtn.className = "btn btn-secondary btn-small";
+  showAllBtn.textContent = i18n.showAll || "Show all";
+  showAllBtn.disabled = hidden.size === 0;
+  showAllBtn.addEventListener("click", (evt) => {
+    evt.stopPropagation();
+    patchwatchShowAll();
+  });
+  actions.append(hideOutdatedBtn, showAllBtn);
+  panel.appendChild(actions);
 
   if (hidden.size === 0) {
     const p = document.createElement("p");

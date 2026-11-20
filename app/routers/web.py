@@ -19,6 +19,7 @@ from app.i18n import (
     translate,
 )
 from app.models import FetchRun, Patch, Product
+from app.outdated import OUTDATED_LAG_DAYS, find_outdated
 from app.product_sort import fetch_oldest_patch_dates, version_sort_key
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
 from app.static_version import static_version
@@ -30,6 +31,7 @@ templates = Jinja2Templates(directory="app/templates")
 # the quotes (&#34;), which is invalid inside a <script> block.
 templates.env.filters["tojson"] = lambda value: Markup(json.dumps(value))
 templates.env.globals["static_version"] = static_version
+templates.env.globals["outdated_lag_days"] = OUTDATED_LAG_DAYS
 
 FAMILY_ORDER = ["windows_client", "windows_server", "sql_server", "dotnet_framework", "dotnet"]
 
@@ -128,6 +130,15 @@ async def _load_dashboard_data():
 
         for items in grouped.values():
             items.sort(key=lambda item: version_sort_key(item["product"], oldest_dates))
+            # Compared within the family only, see app/outdated.py
+            outdated = find_outdated(
+                {
+                    item["product"].key: item["latest"].release_date if item["latest"] else None
+                    for item in items
+                }
+            )
+            for item in items:
+                item["outdated"] = item["product"].key in outdated
         return grouped, last_run
 
 
