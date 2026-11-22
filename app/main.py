@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
@@ -37,3 +38,16 @@ app.include_router(admin.router)
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+# Some clients (home-screen shortcut creators, RSS readers, ...) ignore the
+# <link> tags and probe these fixed root paths directly.
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("app/static/icons/favicon-32.png", media_type="image/png")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def apple_touch_icon():
+    return FileResponse("app/static/icons/apple-touch-icon.png", media_type="image/png")

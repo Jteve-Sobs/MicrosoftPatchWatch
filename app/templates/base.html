@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
+  {# Real image files instead of an emoji data-URI: home-screen shortcuts
+     (Firefox/Chrome on Android, iOS) only pick up PNG icons from
+     apple-touch-icon / the web manifest and showed a blank icon otherwise. #}
+  <link rel="icon" type="image/svg+xml" href="{{ static_version('/static/icons/icon.svg') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ static_version('/static/icons/favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ static_version('/static/icons/icon-192.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ static_version('/static/icons/apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ static_version('/static/manifest.webmanifest') }}">
+  <meta name="theme-color" content="#2f6fed">
   <link rel="stylesheet" href="{{ static_version('/static/css/style.css') }}">
   <script>
     // Applies a saved explicit theme choice before first paint — deferred
