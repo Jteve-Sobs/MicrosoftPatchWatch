@@ -23,12 +23,14 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.app_settings import FETCH_OUTDATED_PRODUCTS, get_bool
 from app.config import get_settings
 from app.database import async_session_factory
-from app.fetchers.base import PatchInfo, ProductInfo
+from app.fetchers.base import FetchResult, PatchInfo, ProductInfo
 from app.fetchers.registry import get_fetchers
 from app.models import FetchRun, FetchRunSource, Patch, Product
 from app.notifier import NewPatchNotice, notify_fetch_errors, notify_new_patches
+from app.outdated import find_outdated_products
 
 logger = logging.getLogger("patchwatch.refresh")
 settings = get_settings()
@@ -79,6 +81,8 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                 await session.execute(select(func.count()).select_from(FetchRun))
             ).scalar_one() == 0
 
+            skip_keys = await _skipped_product_keys(session)
+
             run = FetchRun(trigger=trigger, status="running")
             session.add(run)
             await session.commit()
@@ -94,6 +98,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                 source = FetchRunSource(
                     run_id=run.id, fetcher=fetcher.name, started_at=dt.datetime.now(dt.timezone.utc)
                 )
+                fetcher.skip_product_keys = skip_keys
                 with _capture_fetcher_logs() as captured:
                     try:
                         result = await fetcher.fetch()
@@ -110,6 +115,7 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
                     await session.commit()
                     continue
 
+                _drop_skipped_products(result, skip_keys)
                 errors.extend(result.errors)
                 source.errors = "\n".join(result.errors) or None
                 source.patches_seen = len(result.patches)
@@ -197,6 +203,33 @@ async def run_all_fetchers(trigger: str = "scheduler") -> None:
             await notify_new_patches(new_notices)
         if should_notify_errors:
             await notify_fetch_errors(errors, run.status)
+
+
+async def _skipped_product_keys(session: AsyncSession) -> frozenset[str]:
+    """Products this run leaves alone: the outdated ones (app.outdated),
+    unless /admin switched FETCH_OUTDATED_PRODUCTS on. Decided from the data
+    already stored, before any fetcher runs — on a fresh database nothing is
+    outdated yet, so the very first run still fetches everything."""
+    if await get_bool(session, FETCH_OUTDATED_PRODUCTS):
+        return frozenset()
+    keys = frozenset(p.key for p in await find_outdated_products(session))
+    if keys:
+        # Not logged under patchwatch.fetchers: that would land in every
+        # source's captured log and mark it as "OK with retries/skips".
+        logger.info("Not querying %s outdated products: %s", len(keys), ", ".join(sorted(keys)))
+    return keys
+
+
+def _drop_skipped_products(result: FetchResult, skip_keys: frozenset[str]) -> None:
+    """Removes skipped products from a fetcher's result. Fetchers that read
+    one page for many products (Windows release health, MSRC's monthly
+    documents) can't avoid the request, but nothing about a skipped product
+    gets written — its stored data stays exactly as it was."""
+    if not skip_keys:
+        return
+    result.products = [p for p in result.products if p.key not in skip_keys]
+    result.patches = [p for p in result.patches if p.product_key not in skip_keys]
+    result.patch_kb_hints = {k: v for k, v in result.patch_kb_hints.items() if k[0] not in skip_keys}
 
 
 async def _upsert_product(session: AsyncSession, info: ProductInfo) -> None:

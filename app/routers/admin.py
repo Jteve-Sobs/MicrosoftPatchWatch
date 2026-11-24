@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.app_settings import FETCH_OUTDATED_PRODUCTS, get_bool, set_bool
 from app.config import get_settings
 from app.database import async_session_factory
 from app.i18n import (
@@ -30,6 +31,7 @@ from app.i18n import (
     translate,
 )
 from app.models import FetchRun, Patch, Product
+from app.outdated import OUTDATED_LAG_DAYS, find_outdated_products
 from app.product_sort import sort_products_chronologically
 from app.refresh_service import is_refresh_running, maybe_trigger_refresh
 from app.static_version import static_version
@@ -88,6 +90,8 @@ async def admin_index(request: Request, locale: str = Depends(resolve_locale)):
                 )
             ).all()
         )
+        fetch_outdated = await get_bool(session, FETCH_OUTDATED_PRODUCTS)
+        outdated_products = await find_outdated_products(session)
 
     return templates.TemplateResponse(
         request,
@@ -95,6 +99,9 @@ async def admin_index(request: Request, locale: str = Depends(resolve_locale)):
         {
             "products": products,
             "count_by_product": count_by_product,
+            "fetch_outdated": fetch_outdated,
+            "outdated_products": outdated_products,
+            "outdated_lag_days": OUTDATED_LAG_DAYS,
             "refresh_running": is_refresh_running(),
             **_i18n_context(locale),
         },
@@ -105,6 +112,16 @@ async def admin_index(request: Request, locale: str = Depends(resolve_locale)):
 async def admin_force_refresh():
     started = await maybe_trigger_refresh(trigger="admin-manual", force=True)
     return RedirectResponse(url=f"/admin?refresh_started={int(started)}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/settings", dependencies=[Depends(require_admin)])
+async def admin_save_settings(fetch_outdated: bool = Form(False)):
+    """An unchecked checkbox isn't submitted at all, hence the False default.
+    Takes effect from the next refresh on."""
+    async with async_session_factory() as session:
+        await set_bool(session, FETCH_OUTDATED_PRODUCTS, fetch_outdated)
+        await session.commit()
+    return RedirectResponse(url="/admin?settings_saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 LOGS_PAGE_SIZE = 50

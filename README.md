@@ -162,6 +162,17 @@ correction.
 refresh immediately, even within the `MIN_REFRESH_INTERVAL_MINUTES` debounce
 window, so a correction can be checked against fresh data right away.
 
+**Outdated products are not queried by default.** A product counts as
+outdated by the same rule as the dashboard's "Hide outdated" button (see
+`app/outdated.py`: its newest patch lags more than 75 days behind the newest
+patch of its family, e.g. SQL Server 2016 next to 2017–2025). The refresh
+skips their requests where a source has one per product (SQL Server pages,
+.NET `releases.json`) and drops them from shared pages (Windows release
+health, MSRC); their stored history stays untouched and visible. The
+"Also query outdated products" setting on `/admin` (stored in the
+`app_settings` table) turns them back on, from the next refresh. The same
+section lists which products are currently affected.
+
 `/admin/logs` — every refresh run, newest first (50 per page). Expanding a run
 shows each source's status, duration, patches seen/new, its errors and
 everything it logged at INFO+ while running (retries, skipped KB pages,

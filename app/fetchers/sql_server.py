@@ -69,6 +69,8 @@ class SqlServerFetcher(BaseFetcher):
         result = FetchResult()
         async with self.make_client() as client:
             for year in VERSIONS:
+                if f"sqlserver-{year}" in self.skip_product_keys:
+                    continue
                 try:
                     await self._fetch_version(client, year, result)
                 except Exception as exc:  # noqa: BLE001 - one bad version must not kill the run

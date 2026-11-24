@@ -15,6 +15,31 @@
   </div>
 </section>
 
+<section class="family-section admin-settings">
+  <h2>{{ t('admin.settings') }}</h2>
+  <form method="post" action="/admin/settings">
+    <label class="admin-setting">
+      <input type="checkbox" name="fetch_outdated" value="true" {% if fetch_outdated %}checked{% endif %}>
+      {{ t('admin.fetch_outdated') }}
+    </label>
+    <p class="muted">{{ t('admin.fetch_outdated_hint')|replace('{days}', outdated_lag_days|string) }}</p>
+    <div class="toolbar">
+      <button class="btn" type="submit">{{ t('admin.save') }}</button>
+      {% if request.query_params.get('settings_saved') == '1' %}
+        <span class="muted">{{ t('admin.settings_saved') }}</span>
+      {% endif %}
+    </div>
+  </form>
+  {% if outdated_products %}
+    <p>
+      {{ t('admin.outdated_products_queried') if fetch_outdated else t('admin.outdated_products_skipped') }}
+      {% for product in outdated_products %}<a href="/admin/products/{{ product.key }}">{{ product.display_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    </p>
+  {% else %}
+    <p class="muted">{{ t('admin.outdated_products_none') }}</p>
+  {% endif %}
+</section>
+
 {% for family in ["windows_client", "windows_server", "sql_server", "dotnet_framework", "dotnet"] %}
   {% set family_products = products|selectattr("family", "equalto", family)|list %}
   {% if family_products %}

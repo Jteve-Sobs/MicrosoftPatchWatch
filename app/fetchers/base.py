@@ -66,6 +66,15 @@ class BaseFetcher:
 
     name: str = "base"
 
+    # Product keys the refresh doesn't want queried this run (outdated
+    # products, see app_settings.FETCH_OUTDATED_PRODUCTS). Set by
+    # refresh_service before fetch(). A fetcher that requests data per
+    # product (one page per SQL Server version, one releases.json per .NET
+    # channel) should skip those requests entirely. Everything else needs no
+    # special handling: refresh_service drops any product/patch with one of
+    # these keys from every FetchResult anyway.
+    skip_product_keys: frozenset[str] = frozenset()
+
     async def fetch(self) -> FetchResult:  # pragma: no cover - interface
         raise NotImplementedError
 

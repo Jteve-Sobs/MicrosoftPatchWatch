@@ -94,6 +94,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "being overwritten by the next automatic refresh."
         ),
         "admin.force_refresh": "Refresh now (skip debounce)",
+        "admin.settings": "Settings",
+        "admin.fetch_outdated": "Also query outdated products",
+        "admin.fetch_outdated_hint": (
+            "Outdated = the latest update lags more than {days} days behind the newest "
+            "product of the same family (e.g. SQL Server 2016). By default they are no "
+            "longer queried; their stored entries stay visible either way. Takes effect "
+            "from the next refresh on."
+        ),
+        "admin.settings_saved": "Settings saved.",
+        "admin.outdated_products_skipped": "Currently not queried:",
+        "admin.outdated_products_queried": "Outdated, but still queried:",
+        "admin.outdated_products_none": "No product is outdated right now.",
         "admin.refresh_started": "Refresh started.",
         "admin.logs": "Fetch log",
         "admin.logs_intro": "Every data refresh, newest first. Expand a run to see what each source did and what went wrong.",
@@ -219,6 +231,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "hier werden vor dem nächsten automatischen Refresh geschützt."
         ),
         "admin.force_refresh": "Jetzt aktualisieren (Debounce ignorieren)",
+        "admin.settings": "Einstellungen",
+        "admin.fetch_outdated": "Veraltete Produkte weiterhin abfragen",
+        "admin.fetch_outdated_hint": (
+            "Veraltet = das letzte Update liegt mehr als {days} Tage hinter dem neuesten "
+            "Produkt derselben Familie (z. B. SQL Server 2016). Standardmäßig werden sie "
+            "nicht mehr abgefragt; ihre gespeicherten Einträge bleiben trotzdem sichtbar. "
+            "Gilt ab dem nächsten Refresh."
+        ),
+        "admin.settings_saved": "Einstellungen gespeichert.",
+        "admin.outdated_products_skipped": "Werden derzeit nicht abgefragt:",
+        "admin.outdated_products_queried": "Veraltet, werden aber weiterhin abgefragt:",
+        "admin.outdated_products_none": "Derzeit ist kein Produkt veraltet.",
         "admin.refresh_started": "Aktualisierung gestartet.",
         "admin.logs": "Abruf-Log",
         "admin.logs_intro": "Alle Datenabrufe, neuester zuerst. Einen Lauf aufklappen, um zu sehen, was jede Quelle gemacht hat und was schiefging.",

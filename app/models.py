@@ -151,3 +151,17 @@ class FetchRunSource(Base):
     @property
     def new_patch_items(self) -> list[dict]:
         return json.loads(self.new_patch_list) if self.new_patch_list else []
+
+
+class AppSetting(Base):
+    """Operator settings changed at runtime on /admin (as opposed to
+    app.config.Settings, which comes from the environment and needs a
+    restart). Plain key/value rows; read through app.app_settings. Its own
+    table, so create_all adds it to an existing database without a
+    migration."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(String(500))
+

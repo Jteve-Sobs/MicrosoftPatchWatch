@@ -26,7 +26,13 @@ clearly stopped receiving updates shows up within a few months.
 from __future__ import annotations
 
 import datetime as dt
+from collections import defaultdict
 from collections.abc import Mapping
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Patch, Product
 
 OUTDATED_LAG_DAYS = 75
 
@@ -46,3 +52,30 @@ def find_outdated(
         return set()
     cutoff = max(known) - dt.timedelta(days=lag_days)
     return {key for key, d in latest_dates.items() if d is not None and d < cutoff}
+
+
+async def find_outdated_products(session: AsyncSession) -> list[Product]:
+    """The outdated products in the database, by the
+    same rule as find_outdated above — so what the refresh skips (see
+    app_settings.FETCH_OUTDATED_PRODUCTS) is exactly what the dashboard's
+    "Hide outdated" button hides. Sorted by family, then name."""
+    rows = (
+        await session.execute(
+            select(Product, func.max(Patch.release_date))
+            .outerjoin(Patch, Patch.product_id == Product.id)
+            .group_by(Product.id)
+        )
+    ).all()
+    by_family: dict[str, dict[str, dt.date | None]] = defaultdict(dict)
+    products_by_key = {}
+    for product, latest in rows:
+        by_family[product.family][product.key] = latest
+        products_by_key[product.key] = product
+    outdated_keys: set[str] = set()
+    for latest_dates in by_family.values():
+        outdated_keys |= find_outdated(latest_dates)
+    return sorted(
+        (products_by_key[key] for key in outdated_keys),
+        key=lambda p: (p.family, p.display_name),
+    )
+

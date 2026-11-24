@@ -353,6 +353,9 @@ a:hover { text-decoration: underline; }
 .admin-form { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
 .admin-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--text-muted); }
 .admin-checkbox-label { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; }
+/* Settings block on /admin (fetch outdated products). */
+.admin-setting { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.admin-settings form { margin-bottom: 8px; }
 .admin-form input, .admin-form select {
   font: inherit;
   padding: 8px 10px;

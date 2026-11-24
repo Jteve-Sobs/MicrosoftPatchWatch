@@ -59,6 +59,8 @@ class DotNetFetcher(BaseFetcher):
         product = entry.get("product", ".NET")
         product_key = f"dotnet-{version}"
         display_name = f"{product} {version}"
+        if product_key in self.skip_product_keys:
+            return
 
         result.products.append(
             ProductInfo(
